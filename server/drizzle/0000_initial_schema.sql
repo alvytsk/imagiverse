@@ -9,6 +9,18 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 CREATE EXTENSION IF NOT EXISTS "unaccent";
 
 -- ============================================================================
+-- Immutable wrapper for unaccent()
+-- PostgreSQL marks unaccent() as STABLE (it depends on the dictionary, which
+-- could theoretically change). Generated columns require IMMUTABLE expressions.
+-- This thin SQL wrapper is safe because we never change the unaccent dictionary
+-- at runtime. Standard PostgreSQL pattern for using unaccent in indexes and
+-- generated columns.
+-- ============================================================================
+CREATE OR REPLACE FUNCTION immutable_unaccent(text) RETURNS text AS $$
+  SELECT public.unaccent('public.unaccent', $1)
+$$ LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT;
+
+-- ============================================================================
 -- Users
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS users (
@@ -30,16 +42,17 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Generated search columns (auto-updated by Postgres on insert/update)
 -- These allow case-insensitive, diacritics-insensitive trigram search.
+-- Uses immutable_unaccent() wrapper — see function definition above.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS search_name TEXT GENERATED ALWAYS AS (
-    unaccent(lower(display_name))
+    immutable_unaccent(lower(display_name))
 ) STORED;
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS search_user TEXT GENERATED ALWAYS AS (
-    unaccent(lower(username))
+    immutable_unaccent(lower(username))
 ) STORED;
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS search_city TEXT GENERATED ALWAYS AS (
-    unaccent(lower(coalesce(city, '')))
+    immutable_unaccent(lower(coalesce(city, '')))
 ) STORED;
 
 -- GIN indexes for trigram similarity (used in M6 user search)

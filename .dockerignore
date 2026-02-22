@@ -1,13 +1,20 @@
-# Client (excluded from API/Worker Docker builds — it's a separate SPA build)
-# The client workspace is not needed in the server Docker images.
-client/
+# Client source (excluded from API/Worker Docker builds — separate SPA build)
+# Keep client/package.json for pnpm workspace resolution
+client/src
+client/public
+client/index.html
+client/vite.config.ts
+client/tsconfig*.json
+client/biome.json
+client/dist
+client/node_modules
 
 # Git
 .git
 .gitignore
 .gitattributes
 
-# Node
+# Node modules (installed inside Docker)
 node_modules
 npm-debug.log*
 yarn-debug.log*
@@ -20,14 +27,13 @@ yarn-error.log*
 *.swp
 *.swo
 *~
-.DS_Store
 
-# Environment
+# Environment (secrets must not leak into images)
 .env
 .env.local
 .env.*.local
 
-# Build artifacts
+# Build artifacts (built inside Docker)
 dist
 build
 .next
@@ -37,13 +43,14 @@ out
 coverage
 .nyc_output
 
-# Docker
-Dockerfile*
-docker-compose*.yml
+# Docker (no recursive inclusion)
+docker/Dockerfile*
+docker/docker-compose*.yml
 .dockerignore
 
 # Documentation
 README.md
+CLAUDE.md
 docs
 
 # CI
@@ -57,11 +64,10 @@ Jenkinsfile
 Thumbs.db
 .DS_Store
 
-# Root files (keep only essentials)
-tsconfig*.json
+# Alternative lockfiles (project uses pnpm)
 package-lock.json
-pnpm-lock.yaml
 yarn.lock
+bun.lock
 
 # Temporary
 tmp

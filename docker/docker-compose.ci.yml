@@ -1,5 +1,3 @@
-version: '3.8'
-
 # ============================================================================
 # Docker Compose overrides for CI/CD testing
 # Extends docker-compose.yml with CI-specific settings:
@@ -92,7 +90,7 @@ services:
       - ./garage.toml:/etc/garage/garage.toml:ro
 
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:3902/health"]
+      test: ["CMD", "/garage", "-c", "/etc/garage/garage.toml", "status"]
       interval: 5s
       timeout: 3s
       retries: 12

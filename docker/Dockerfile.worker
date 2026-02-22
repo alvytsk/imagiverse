@@ -3,66 +3,49 @@
 # Includes libvips for Sharp image processing (thumbnail generation)
 
 # ============================================================================
-# Stage 1: Dependencies
+# Stage 1: Build (install deps, compile TypeScript, deploy prod bundle)
 # ============================================================================
-FROM node:20-alpine AS deps
+FROM node:24-alpine AS build
 
-WORKDIR /app
+RUN corepack enable
 
-# Install build dependencies required for native modules (sharp → libvips)
+# Install build dependencies required for native modules (sharp -> libvips)
 RUN apk add --no-cache \
-    libvips-dev \
+    vips-dev \
     python3 \
     make \
     g++
 
-COPY package*.json ./
-COPY server/package*.json ./server/
-COPY shared/package*.json ./shared/
-
-# Install production dependencies (including sharp with native bindings)
-RUN npm ci --only=production \
-    && npm cache clean --force
-
-# ============================================================================
-# Stage 2: Build
-# ============================================================================
-FROM node:20-alpine AS build
-
 WORKDIR /app
 
-# Install build dependencies
-RUN apk add --no-cache \
-    libvips-dev \
-    python3 \
-    make \
-    g++
+# Copy workspace config and lockfile first for layer caching
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY server/package.json ./server/
+COPY shared/package.json ./shared/
+COPY client/package.json ./client/
 
-COPY package*.json ./
-COPY server/package*.json ./server/
-COPY shared/package*.json ./shared/
+# Install all dependencies (including dev deps and native bindings for sharp)
+RUN pnpm install --frozen-lockfile
 
-RUN npm ci \
-    && npm cache clean --force
-
+# Copy source code
 COPY server ./server/
 COPY shared ./shared/
 COPY tsconfig.json tsconfig.server.json ./
 
 # Build shared then server
-RUN npm run build --workspace=shared 2>/dev/null || true
-RUN npm run build --workspace=server
+RUN pnpm --filter imagiverse-shared run build
+RUN pnpm --filter imagiverse-server run build
 
-# Remove dev dependencies
-RUN npm prune --production
+# Create standalone deployment with production deps only
+RUN pnpm deploy --filter=imagiverse-server --prod --legacy /deploy
 
 # ============================================================================
-# Stage 3: Runtime — includes libvips for Sharp image processing
+# Stage 2: Runtime — includes libvips for Sharp image processing
 # ============================================================================
-FROM node:20-alpine AS production
+FROM node:24-alpine AS production
 
 # Install runtime libraries (libvips for Sharp, curl for health checks)
-RUN apk add --no-cache libvips curl
+RUN apk add --no-cache vips curl
 
 # Security: Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -73,13 +56,10 @@ WORKDIR /app
 # Set production environment
 ENV NODE_ENV=production
 
-# Copy build artifacts
-COPY --from=build --chown=workeruser:nodejs /app/node_modules     ./node_modules
-COPY --from=build --chown=workeruser:nodejs /app/server/dist      ./server/dist
-COPY --from=build --chown=workeruser:nodejs /app/shared/dist      ./shared/dist
-COPY --from=build --chown=workeruser:nodejs /app/server/package.json ./server/
-COPY --from=build --chown=workeruser:nodejs /app/shared/package.json ./shared/
-COPY --from=build --chown=workeruser:nodejs /app/package.json     ./
+# Copy only necessary artifacts from deploy bundle
+COPY --from=build --chown=workeruser:nodejs /deploy/node_modules ./node_modules
+COPY --from=build --chown=workeruser:nodejs /deploy/dist          ./dist
+COPY --from=build --chown=workeruser:nodejs /deploy/package.json  ./
 
 # Health check: Verify worker health endpoint is responsive
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
@@ -92,4 +72,4 @@ EXPOSE 3001
 USER workeruser
 
 # Run the worker process
-CMD ["node", "server/dist/worker.js"]
+CMD ["node", "dist/worker.js"]

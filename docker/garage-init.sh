@@ -56,7 +56,7 @@ if [ -z "$NODE_ID" ]; then
   echo "[garage-init] WARNING: Could not extract node ID from status response."
   echo "[garage-init] Status response was: $STATUS"
   echo "[garage-init] Attempting to use garage CLI to get node ID..."
-  NODE_ID=$(garage -c /etc/garage/garage.toml node id 2>/dev/null | grep -oE '[0-9a-f]{8,}' | head -1 || echo "")
+  NODE_ID=$(/garage -c /etc/garage/garage.toml node id 2>/dev/null | grep -oE '[0-9a-f]{8,}' | head -1 || echo "")
 fi
 
 if [ -z "$NODE_ID" ]; then
