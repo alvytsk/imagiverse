@@ -8,8 +8,9 @@ import { runMigrations } from './db/migrate';
 import { authenticate } from './middleware/auth';
 import { authRoutes } from './modules/auth/auth.routes';
 import { healthRoutes } from './modules/health/health.routes';
-import { ensureBucketExists } from './plugins/s3';
+import { photoRoutes } from './modules/photos/photos.routes';
 import { redis } from './plugins/redis';
+import { ensureBucketExists } from './plugins/s3';
 
 // Make `authenticate` importable by feature modules via the shared export
 export { authenticate };
@@ -63,6 +64,7 @@ async function start(): Promise<void> {
 
   await server.register(healthRoutes);
   await server.register(authRoutes, { prefix: '/api' });
+  await server.register(photoRoutes, { prefix: '/api' });
 
   // ── Start listening ────────────────────────────────────────────────────────
   await server.listen({ port: env.API_PORT, host: env.API_HOST });

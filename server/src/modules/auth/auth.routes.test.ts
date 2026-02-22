@@ -134,7 +134,12 @@ describe('POST /api/auth/register', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/auth/register',
-      payload: { email: 'alice@example.com', username: 'alice', displayName: 'Alice', password: 'short' },
+      payload: {
+        email: 'alice@example.com',
+        username: 'alice',
+        displayName: 'Alice',
+        password: 'short',
+      },
     });
 
     expect(response.statusCode).toBe(400);
@@ -394,11 +399,9 @@ describe('authenticate middleware', () => {
     await app.ready();
 
     // Sign a real JWT using the test secret set in test-setup.ts
-    const token = jwt.sign(
-      { id: 'user-abc', role: 'user' },
-      process.env['JWT_SECRET']!,
-      { expiresIn: '15m' },
-    );
+    const token = jwt.sign({ id: 'user-abc', role: 'user' }, process.env['JWT_SECRET']!, {
+      expiresIn: '15m',
+    });
 
     const response = await app.inject({
       method: 'GET',

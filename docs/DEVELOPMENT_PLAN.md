@@ -855,15 +855,17 @@ on manual trigger / tag:
 
 #### Epic M3: Photo Upload & Thumbnail Pipeline
 
+**Status: ✓ COMPLETE**
+
 | Task | DoD |
 |---|---|
-| M3.1 `POST /api/photos` — multipart upload, validate file, store original to S3, insert DB row | Integration test: upload valid file → DB row + S3 object exist |
-| M3.2 File validation (size, MIME, magic bytes) | Rejects invalid files (wrong type, too large, corrupt) |
-| M3.3 BullMQ setup + `generate-thumbnails` worker | Worker processes job; 3 thumbnails in S3; photo status updated to 'ready' |
-| M3.4 Retry logic, failure handling, idempotency | Failed job retries 3x; photo marked 'failed' after exhaustion |
-| M3.5 `GET /api/photos/:id` — return photo metadata with thumbnail URLs | Returns S3-direct URLs; 404 for missing |
-| M3.6 `DELETE /api/photos/:id` — soft delete (owner only) | Photo status = 'deleted'; excluded from feed and user profile |
-| M3.7 `PATCH /api/photos/:id` — update caption (owner only) | Caption updated; sanitized |
+| M3.1 `POST /api/photos` — multipart upload, validate file, store original to S3, insert DB row | ✓ Integration test: upload valid file → DB row + S3 object exist; returns 201 with `{id, status}` |
+| M3.2 File validation (size, MIME, magic bytes) | ✓ Rejects invalid files (wrong type, too large, corrupt); validates MIME + Sharp metadata |
+| M3.3 BullMQ setup + `generate-thumbnails` worker | ✓ Worker processes job; generates 3 WebP thumbnails (256/800/1600px) in parallel; uploads to S3; updates photo status to 'ready' |
+| M3.4 Retry logic, failure handling, idempotency | ✓ Job retries 3x with exponential backoff; photo marked 'failed' after exhaustion; idempotent via jobId=`thumb-{photoId}` |
+| M3.5 `GET /api/photos/:id` — return photo metadata with thumbnail URLs | ✓ Returns presigned S3 URLs; filters out deleted photos; 404 for missing |
+| M3.6 `DELETE /api/photos/:id` — soft delete (owner only) | ✓ Sets photo status='deleted'; owner-only (non-owner returns 404); excluded from feed/profiles |
+| M3.7 `PATCH /api/photos/:id` — update caption (owner only) | ✓ Caption sanitized via sanitize-html; owner-only; returns 404 for non-owner/missing |
 
 #### Epic M4: Likes & Comments
 

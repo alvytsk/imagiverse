@@ -99,8 +99,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       // Always run a comparison to prevent timing-based user enumeration.
       // Use a dummy hash when the user is not found.
       const hash =
-        user?.passwordHash ??
-        '$2b$12$invalidHashPaddingForTimingAttackPrevention0000000000';
+        user?.passwordHash ?? '$2b$12$invalidHashPaddingForTimingAttackPrevention0000000000';
       const valid = await comparePassword(password, hash);
 
       if (!user || !valid) {

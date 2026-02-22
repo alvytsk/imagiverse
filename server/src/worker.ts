@@ -1,11 +1,13 @@
+import type { Worker } from 'bullmq';
 import Fastify from 'fastify';
 import { env } from './config/env';
+import { createThumbnailWorker } from './jobs/thumbnail.processor';
 
 // ============================================================================
 // Worker Entry Point
 //
 // This process runs BullMQ workers for async tasks:
-//   - generate-thumbnails (M3.3)
+//   - generate-thumbnails (M3)
 //   - recalc-feed-score   (M5.2)
 //   - cleanup-stale       (M3.4 / M6.4)
 //
@@ -29,19 +31,24 @@ healthServer.get('/health', async () => ({
   timestamp: new Date().toISOString(),
 }));
 
+let thumbnailWorker: Worker | undefined;
+
 async function start(): Promise<void> {
   // Start health HTTP server
   await healthServer.listen({ port: env.WORKER_PORT, host: env.API_HOST });
   healthServer.log.info(`Worker health endpoint: http://${env.API_HOST}:${env.WORKER_PORT}/health`);
 
-  // BullMQ workers will be registered here in M3 and M5.
-  // Placeholder log to confirm worker process is running.
-  healthServer.log.info('BullMQ worker started (jobs registered in M3/M5)');
+  // Start BullMQ workers
+  thumbnailWorker = createThumbnailWorker();
+  healthServer.log.info('Thumbnail worker started');
 }
 
 const shutdown = async (signal: string) => {
   healthServer.log.info(`Received ${signal}, shutting down worker...`);
-  // Gracefully drain BullMQ workers before closing (added in M3)
+  // Gracefully drain BullMQ workers before closing health server
+  if (thumbnailWorker) {
+    await thumbnailWorker.close();
+  }
   await healthServer.close();
   process.exit(0);
 };

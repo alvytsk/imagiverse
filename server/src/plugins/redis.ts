@@ -13,6 +13,7 @@ redis.on('error', (err) => {
 
 export const RedisKeys = {
   refreshToken: (userId: string) => `refresh:${userId}`,
+  uploadRate: (userId: string) => `upload-rate:${userId}`,
 } as const;
 
 /** TTL in seconds for refresh tokens stored in Redis (matches JWT_REFRESH_EXPIRES_IN default) */

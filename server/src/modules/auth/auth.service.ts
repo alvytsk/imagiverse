@@ -1,10 +1,10 @@
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { eq, or } from 'drizzle-orm';
+import jwt from 'jsonwebtoken';
 import { env } from '../../config/env';
 import { db } from '../../db/index';
 import { users } from '../../db/schema/index';
-import { redis, RedisKeys, REFRESH_TOKEN_TTL } from '../../plugins/redis';
+import { REFRESH_TOKEN_TTL, RedisKeys, redis } from '../../plugins/redis';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -86,25 +86,18 @@ export async function createUser(data: {
   displayName: string;
   passwordHash: string;
 }) {
-  const [user] = await db
-    .insert(users)
-    .values(data)
-    .returning({
-      id: users.id,
-      email: users.email,
-      username: users.username,
-      displayName: users.displayName,
-      role: users.role,
-    });
+  const [user] = await db.insert(users).values(data).returning({
+    id: users.id,
+    email: users.email,
+    username: users.username,
+    displayName: users.displayName,
+    role: users.role,
+  });
   return user;
 }
 
 export async function findUserByEmail(email: string) {
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, email))
-    .limit(1);
+  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   return user ?? null;
 }
 
