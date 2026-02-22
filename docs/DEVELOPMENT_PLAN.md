@@ -39,7 +39,6 @@ ranked feed, like and comment on photos, and search for other users. The tech st
 | **Cache / Sessions** | Redis 7 |
 | **Search** | Postgres `pg_trgm` + `unaccent` (MVP); Elasticsearch (v2) |
 | **Object Storage** | S3-compatible (Garage v2 for dev/prod) |
-| **CDN** | We dont' need CDN at this stage |
 | **Job Queue** | BullMQ (Redis-backed) |
 | **Auth** | JWT access tokens (short-lived) + HTTP-only refresh cookie |
 | **Containerization** | Docker + Docker Compose (dev), Kubernetes-ready Dockerfiles (prod) |
@@ -99,7 +98,7 @@ Target: start with a few thousand users, grow to hundreds of thousands.
 
 Rationale:
 - Single language across entire stack — lower context-switching, shared validation schemas (Zod), shared types.
-- Sharp (libvips wrapper) is the fastest image processing library in any runtime.
+- Sharp (libvips wrapper) is the fastest image processing option in the Node ecosystem; performance comes from libvips itself, so any runtime calling libvips would be comparable.
 - BullMQ provides production-grade job queues on top of the same Redis used for caching.
 - Fastify's schema-based validation compiles to fast JIT checks; plugin architecture is clean.
 - Drizzle ORM gives type-safe SQL without the magic of Prisma; migrations are plain SQL.
@@ -275,7 +274,7 @@ CREATE INDEX idx_feed_scores_rank ON feed_scores(score DESC);
 |---|---|---|
 | **PostgreSQL** | Users, photos metadata, likes, comments, feed_scores | Relational integrity, ACID transactions, strong indexing. Likes need unique constraints. Feed scores need ordered index. Comments are relational. |
 | **Redis** | Session/refresh tokens, rate-limit counters, feed page cache, BullMQ job queue | Sub-ms reads for hot data. Rate limiting needs atomic increments with TTL. Feed cache is short-lived (30–60s TTL). BullMQ requires Redis. |
-| **S3-compatible** | Original photos, generated thumbnails | Cheap, durable, CDN-friendly object storage. Never store binary blobs in Postgres. |
+| **S3-compatible** | Original photos, generated thumbnails | Cheap, durable object storage. Never store binary blobs in Postgres. |
 | **Elasticsearch** (v2) | User search, photo search by caption | When pg_trgm stops scaling (>100k users with complex queries), ES provides better relevance tuning, multi-field search, and fuzzy matching. Not needed in MVP. |
 
 **Mongo — why not:** Every entity here has clear relational structure (user→photos, photo→likes, photo→comments). Mongo's schemaless flexibility is a liability, not an asset, for this domain. Postgres with JSONB covers any semi-structured needs (e.g., EXIF metadata on photos).
@@ -290,7 +289,7 @@ CREATE INDEX idx_feed_scores_rank ON feed_scores(score DESC);
 
 Rationale:
 - The data graph is shallow (no deep nesting beyond photo→comments, user→photos).
-- REST is simpler to cache (CDN, Redis), rate-limit, and debug.
+- REST is simpler to cache (Redis), rate-limit, and debug.
 - GraphQL adds complexity (schema stitching, N+1 prevention, upload handling) with little benefit here.
 - TanStack Query on the frontend pairs naturally with REST endpoints.
 
@@ -432,6 +431,7 @@ Worker picks up job
 | **Worker crash** | BullMQ uses Redis locks with TTL. If worker dies mid-job, lock expires and another worker picks it up. |
 | **Duplicate enqueue** | BullMQ deduplicates by job ID. If upload endpoint retries (network glitch), same job ID = no-op. |
 | **Large file OOM** | Sharp streams; set max memory for the worker process; reject files > 20MB at upload time. |
+| **Hostile input** | Set `Sharp.limitInputPixels` (default ~268 MP, lower to ~100 MP). Set a per-job timeout in BullMQ (`timeout: 60_000`). Validate image dimensions via Sharp metadata before full decode. |
 | **Concurrency** | Each worker process handles N concurrent jobs (default: 3). Scale workers horizontally. |
 
 ### 6.4 Cleanup
@@ -605,7 +605,7 @@ Migration path: dual-write to both Postgres and ES during transition; switch sea
 | Image validity | Sharp attempts to read metadata; rejects corrupt/non-image files |
 | EXIF stripping | Sharp strips all EXIF (especially GPS) during thumbnail generation |
 | Filename | Ignored; server generates UUID-based S3 key |
-| S3 ACL | Private bucket; images served only via CDN with signed URLs or public read through CDN origin policy |
+| S3 ACL | Bucket allows direct app access. Public read for authenticated requests via app proxy. |
 
 ### 9.2 Comment / Text Sanitization
 
@@ -647,7 +647,7 @@ Migration path: dual-write to both Postgres and ES during transition; switch sea
 |---|---|---|
 | **Image processing** | >100 uploads/min | Scale BullMQ workers horizontally (separate containers/pods). Workers are stateless. |
 | **Feed query** | >1000 req/s | Redis cache (30s TTL) for top pages. `feed_scores` index is B-tree on `score DESC` — fast. Add read replica if needed. |
-| **S3 reads (images)** | Always | CDN in front of S3. Users never hit S3 directly. Cache-Control headers on thumbnails (immutable, 1 year). |
+| **S3 reads (images)** | As usage grows | App serves images directly from S3. Redis cache layer for metadata. Defer CDN to v2 when bandwidth costs grow. |
 | **Database writes** | >10k likes/min | Connection pooling (PgBouncer). Like count update uses `UPDATE ... SET like_count = like_count + 1` (atomic, no read-modify-write). Partitioning `likes` table by month if needed. |
 | **User search** | >500k users | Migrate to Elasticsearch (see §8.4). |
 | **Database size** | >10M photos | Partition `photos` by `created_at` (range). Archive old `feed_scores` entries (photos > 30 days have ~zero score). |
@@ -796,14 +796,20 @@ on manual trigger / tag:
   └── Promote staging image to production
 ```
 
-### 13.4 Database Migrations
+### 13.4 API Contract Versioning
+
+- In MVP/v1 the SPA and API are deployed together in the same CI pipeline run — the SPA build is triggered only after the API image is built and tests pass. This eliminates frontend/backend version skew.
+- Shared Zod schemas in the `shared/` package provide compile-time contract enforcement. Runtime validation at API boundaries (request parsing) catches any remaining mismatches.
+- If SPA and API deployments are ever decoupled (e.g., CDN-cached SPA vs. rolling API deploy), introduce an `API-Version` header or versioned URL prefix (`/api/v1/`) before splitting.
+
+### 13.5 Database Migrations
 
 - Drizzle Kit for migration generation (SQL files).
 - Migrations run automatically on API startup (with advisory lock to prevent concurrent runs).
 - Migrations are forward-only; no down migrations in prod (use corrective forward migrations instead).
 - Migration files committed to `server/drizzle/` directory.
 
-### 13.5 Secrets Management
+### 13.6 Secrets Management
 
 - Local dev: `.env` files (gitignored).
 - CI: GitHub Actions secrets.
@@ -826,7 +832,7 @@ on manual trigger / tag:
 |---|---|
 | M1.1 Initialize monorepo structure (`client/`, `server/`, `docker/`, `docs/`) | Directories exist, READMEs describe purpose |
 | M1.2 Set up Fastify server with TypeScript, Pino logger, health endpoint | `GET /api/health` returns 200 |
-| M1.3 Docker Compose for Postgres, Redis, MinIO | `docker compose up` starts all services; API can connect |
+| M1.3 Docker Compose for Postgres, Redis, MinIO | `docker compose up` starts all services; API can connect. Redis configured with `appendonly yes` for durability (BullMQ depends on it as production infrastructure, not just cache). |
 | M1.4 Drizzle ORM setup + initial migration (users, photos, likes, comments, feed_scores) | Migration runs; tables created; Drizzle client connects |
 | M1.5 S3 client module (upload, download, delete, presign) | Unit tests pass against MinIO |
 | M1.6 Configure ESLint, Prettier, Vitest for server | `npm run lint` and `npm test` pass |
@@ -851,7 +857,7 @@ on manual trigger / tag:
 | M3.2 File validation (size, MIME, magic bytes) | Rejects invalid files (wrong type, too large, corrupt) |
 | M3.3 BullMQ setup + `generate-thumbnails` worker | Worker processes job; 3 thumbnails in S3; photo status updated to 'ready' |
 | M3.4 Retry logic, failure handling, idempotency | Failed job retries 3x; photo marked 'failed' after exhaustion |
-| M3.5 `GET /api/photos/:id` — return photo metadata with thumbnail URLs | Returns CDN-prefixed URLs; 404 for missing |
+| M3.5 `GET /api/photos/:id` — return photo metadata with thumbnail URLs | Returns S3-direct URLs; 404 for missing |
 | M3.6 `DELETE /api/photos/:id` — soft delete (owner only) | Photo status = 'deleted'; excluded from feed and user profile |
 | M3.7 `PATCH /api/photos/:id` — update caption (owner only) | Caption updated; sanitized |
 
@@ -943,11 +949,10 @@ on manual trigger / tag:
 
 | Task | DoD |
 |---|---|
-| V1.1.1 CDN setup (CloudFront/Cloudflare) for thumbnails + SPA static assets | Images served via CDN; Cache-Control headers set |
-| V1.1.2 PgBouncer connection pooling | API uses pooled connections; no connection exhaustion under load |
-| V1.1.3 Health checks (liveness + readiness) for API and Worker | `/api/health/live`, `/api/health/ready`; ready checks Postgres + Redis connectivity |
-| V1.1.4 Graceful shutdown (drain connections, finish current jobs) | No dropped requests on deploy |
-| V1.1.5 Request ID correlation in logs | Every log line has `requestId`; traceable across services |
+| V1.1.1 PgBouncer connection pooling | API uses pooled connections; no connection exhaustion under load |
+| V1.1.2 Health checks (liveness + readiness) for API and Worker | `/api/health/live`, `/api/health/ready`; ready checks Postgres + Redis connectivity |
+| V1.1.3 Graceful shutdown (drain connections, finish current jobs) | No dropped requests on deploy |
+| V1.1.4 Request ID correlation in logs | Every log line has `requestId`; traceable across services |
 
 #### Epic V1.2: Admin & Moderation
 
@@ -1010,7 +1015,7 @@ on manual trigger / tag:
 
 **v1 Definition of Done:**
 - All v1 epics complete.
-- Production deployment with CDN, monitoring, alerting.
+- Production deployment (Docker-based, Garage S3, monitoring, alerting).
 - Load test passes (feed p95 < 300ms, 500 concurrent).
 - Admin can moderate content.
 - No critical/high vulnerabilities in dependency scan.
@@ -1019,7 +1024,6 @@ on manual trigger / tag:
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| CDN cache invalidation complexity | Medium | Stale images | Immutable thumbnail URLs (content-addressed or versioned); originals never cached |
 | Notification volume at scale | Low (v1 scale) | DB write pressure | Batch notification inserts; consider Redis-based unread count |
 | Load test reveals unexpected bottleneck | Medium | Delays launch | Budget time for perf investigation; have a "good enough" fallback |
 
@@ -1070,7 +1074,7 @@ on manual trigger / tag:
 | V2.4.2 Photo table partitioning by created_at (monthly) | Partition scheme active; queries use partition pruning |
 | V2.4.3 Archive old feed_scores (>30 days) | Table size stays manageable |
 | V2.4.4 Worker auto-scaling based on queue depth | Workers scale up when queue > 100 jobs |
-| V2.4.5 CDN: image optimization (auto WebP/AVIF based on Accept header) | Reduced bandwidth; faster loads |
+| V2.4.5 CDN adoption (CloudFront/Cloudflare): image optimization (auto WebP/AVIF) | Reduced bandwidth; faster loads for global scale |
 
 #### Epic V2.5: Advanced Features
 
