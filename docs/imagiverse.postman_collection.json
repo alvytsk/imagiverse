@@ -1,0 +1,391 @@
+{
+  "info": {
+    "name": "Imagiverse API",
+    "_postman_id": "imagiverse-api-v1",
+    "description": "Imagiverse photo gallery API.\n\nVariables used:\n- `baseUrl`  — API origin (default: http://localhost:3000)\n- `accessToken` — populated automatically by login / register test scripts\n- `refreshToken` — populated automatically (fallback for environments where HttpOnly cookies cannot be relayed)\n\nWorkflow:\n1. Run **Register** or **Login** — the test script stores `accessToken` and `refreshToken` as collection variables.\n2. All protected requests use `{{accessToken}}` in the Authorization header (pre-set on the collection).\n3. Use **Refresh** to get a new access token when the current one expires.\n4. Use **Logout** to revoke the refresh token.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "description": "Liveness and readiness probes (M1).",
+      "item": [
+        {
+          "name": "Liveness",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health/live",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health", "live"]
+            },
+            "description": "Returns 200 if the process is alive. Safe to use as a Docker / K8s liveness probe."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"status\": \"ok\",\n  \"timestamp\": \"2026-02-22T12:00:00.000Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "Readiness",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health/ready",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health", "ready"]
+            },
+            "description": "Returns 200 when Postgres and Redis are reachable, 503 if any check fails."
+          },
+          "response": [
+            {
+              "name": "200 Ready",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"status\": \"ready\",\n  \"checks\": {\n    \"postgres\": \"ok\",\n    \"redis\": \"ok\"\n  },\n  \"timestamp\": \"2026-02-22T12:00:00.000Z\"\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "503 Degraded",
+              "status": "Service Unavailable",
+              "code": 503,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"status\": \"degraded\",\n  \"checks\": {\n    \"postgres\": \"ok\",\n    \"redis\": \"fail\"\n  },\n  \"timestamp\": \"2026-02-22T12:00:00.000Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "description": "Authentication endpoints (M2).\n\nToken lifecycle:\n- **Access token** — 15-minute JWT, returned in the response body.\n- **Refresh token** — 7-day JWT, set as an `HttpOnly; Secure; SameSite=Strict` cookie scoped to `/api/auth`. The test scripts also save it to `{{refreshToken}}` for manual use.",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "  // Cookie is HttpOnly — extract from header as fallback",
+                  "  const cookieHeader = pm.response.headers.get('Set-Cookie') || '';",
+                  "  const match = cookieHeader.match(/refreshToken=([^;]+)/);",
+                  "  if (match) pm.collectionVariables.set('refreshToken', match[1]);",
+                  "  pm.test('Returns 201 with access token', () => {",
+                  "    pm.expect(body).to.have.property('accessToken');",
+                  "    pm.expect(body.tokenType).to.eql('Bearer');",
+                  "    pm.expect(body.user).to.have.property('id');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alice@example.com\",\n  \"username\": \"alice\",\n  \"displayName\": \"Alice Wonder\",\n  \"password\": \"Password123!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Creates a new user account. Returns an access token in the body and sets an HttpOnly `refreshToken` cookie."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" },
+                { "key": "Set-Cookie", "value": "refreshToken=<jwt>; Path=/api/auth; HttpOnly; SameSite=Strict" }
+              ],
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzI1NiJ9...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresIn\": 900,\n  \"user\": {\n    \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"email\": \"alice@example.com\",\n    \"username\": \"alice\",\n    \"displayName\": \"Alice Wonder\",\n    \"role\": \"user\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "400 Validation Error",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": {\n    \"code\": \"VALIDATION_ERROR\",\n    \"message\": \"Invalid input\",\n    \"details\": [\n      { \"field\": \"password\", \"message\": \"Password must be at least 8 characters\" }\n    ]\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "409 Conflict",
+              "status": "Conflict",
+              "code": 409,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": {\n    \"code\": \"CONFLICT\",\n    \"message\": \"Email already in use\",\n    \"details\": [\n      { \"field\": \"email\", \"message\": \"This email is already taken\" }\n    ]\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "  const cookieHeader = pm.response.headers.get('Set-Cookie') || '';",
+                  "  const match = cookieHeader.match(/refreshToken=([^;]+)/);",
+                  "  if (match) pm.collectionVariables.set('refreshToken', match[1]);",
+                  "  pm.test('Returns 200 with access token', () => {",
+                  "    pm.expect(body).to.have.property('accessToken');",
+                  "    pm.expect(body.tokenType).to.eql('Bearer');",
+                  "    pm.expect(body.user).to.have.property('id');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alice@example.com\",\n  \"password\": \"Password123!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Authenticates with email + password. Returns an access token and sets a refresh cookie."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" },
+                { "key": "Set-Cookie", "value": "refreshToken=<jwt>; Path=/api/auth; HttpOnly; SameSite=Strict" }
+              ],
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzI1NiJ9...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresIn\": 900,\n  \"user\": {\n    \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"email\": \"alice@example.com\",\n    \"username\": \"alice\",\n    \"displayName\": \"Alice Wonder\",\n    \"role\": \"user\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "401 Invalid Credentials",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": {\n    \"code\": \"INVALID_CREDENTIALS\",\n    \"message\": \"Invalid email or password\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Postman cannot inject HttpOnly cookies automatically.",
+                  "// If the cookie was not relayed, set the refreshToken variable manually",
+                  "// or use a Postman environment with cookie jar support."
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "  const cookieHeader = pm.response.headers.get('Set-Cookie') || '';",
+                  "  const match = cookieHeader.match(/refreshToken=([^;]+)/);",
+                  "  if (match) pm.collectionVariables.set('refreshToken', match[1]);",
+                  "  pm.test('Returns new access token', () => {",
+                  "    pm.expect(body).to.have.property('accessToken');",
+                  "    pm.expect(body.tokenType).to.eql('Bearer');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "refreshToken={{refreshToken}}",
+                "description": "The browser sends this automatically via HttpOnly cookie. Set {{refreshToken}} if testing manually."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "refresh"]
+            },
+            "description": "Uses the `refreshToken` HttpOnly cookie to obtain a new access token. The refresh token is rotated on every call (new cookie issued, old one revoked in Redis)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" },
+                { "key": "Set-Cookie", "value": "refreshToken=<new-jwt>; Path=/api/auth; HttpOnly; SameSite=Strict" }
+              ],
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzI1NiJ9...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresIn\": 900\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "401 No Token",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHORIZED\",\n    \"message\": \"No refresh token provided\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "401 Revoked",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHORIZED\",\n    \"message\": \"Refresh token has been revoked\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 204) {",
+                  "  pm.collectionVariables.set('accessToken', '');",
+                  "  pm.collectionVariables.set('refreshToken', '');",
+                  "  pm.test('Returns 204 No Content', () => {",
+                  "    pm.expect(pm.response.code).to.eql(204);",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "refreshToken={{refreshToken}}",
+                "description": "Sent automatically by the browser. Set {{refreshToken}} for manual testing."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "logout"]
+            },
+            "description": "Revokes the refresh token in Redis and clears the refresh cookie. Safe to call even without a cookie."
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "status": "No Content",
+              "code": 204,
+              "header": [
+                { "key": "Set-Cookie", "value": "refreshToken=; Path=/api/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Strict" }
+              ],
+              "body": "",
+              "_postman_previewlanguage": "text"
+            }
+          ]
+        },
+        {
+          "name": "Protected Route (Example)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "me"]
+            },
+            "description": "Example of a protected endpoint (implemented in M7). Uses the Bearer token stored in `{{accessToken}}` via the collection-level auth. Returns 401 if the token is missing or expired."
+          },
+          "response": [
+            {
+              "name": "401 Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHORIZED\",\n    \"message\": \"Missing or invalid authorization header\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

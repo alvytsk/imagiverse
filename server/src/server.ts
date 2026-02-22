@@ -1,8 +1,18 @@
+import cookiePlugin from '@fastify/cookie';
+import corsPlugin from '@fastify/cors';
+import helmetPlugin from '@fastify/helmet';
+import rateLimitPlugin from '@fastify/rate-limit';
 import Fastify from 'fastify';
 import { env } from './config/env';
 import { runMigrations } from './db/migrate';
+import { authenticate } from './middleware/auth';
+import { authRoutes } from './modules/auth/auth.routes';
 import { healthRoutes } from './modules/health/health.routes';
 import { ensureBucketExists } from './plugins/s3';
+import { redis } from './plugins/redis';
+
+// Make `authenticate` importable by feature modules via the shared export
+export { authenticate };
 
 const server = Fastify({
   logger: {
@@ -32,10 +42,27 @@ async function start(): Promise<void> {
   await ensureBucketExists();
 
   // ── Register plugins ───────────────────────────────────────────────────────
-  // Plugins for auth, rate-limiting, multipart etc. will be added in M2–M3
+
+  await server.register(helmetPlugin);
+
+  await server.register(corsPlugin, {
+    origin: env.NODE_ENV === 'production' ? false : true,
+    credentials: true,
+  });
+
+  await server.register(cookiePlugin);
+
+  await server.register(rateLimitPlugin, {
+    max: 300,
+    timeWindow: '1 minute',
+    redis,
+    keyGenerator: (request) => request.ip,
+  });
 
   // ── Register routes ────────────────────────────────────────────────────────
+
   await server.register(healthRoutes);
+  await server.register(authRoutes, { prefix: '/api' });
 
   // ── Start listening ────────────────────────────────────────────────────────
   await server.listen({ port: env.API_PORT, host: env.API_HOST });
@@ -45,6 +72,7 @@ async function start(): Promise<void> {
 const shutdown = async (signal: string) => {
   server.log.info(`Received ${signal}, shutting down gracefully...`);
   await server.close();
+  await redis.quit();
   process.exit(0);
 };
 

@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { db } from '../../db/index';
+import { redis } from '../../plugins/redis';
 
 export async function healthRoutes(fastify: FastifyInstance): Promise<void> {
   // Basic liveness check — always returns 200 if the process is running
@@ -20,9 +21,13 @@ export async function healthRoutes(fastify: FastifyInstance): Promise<void> {
       checks.postgres = 'fail';
     }
 
-    // Check Redis (via Fastify's Redis plugin if registered, else skip)
-    // Redis readiness is checked in M2 when the Redis plugin is added
-    checks.redis = 'ok';
+    // Check Redis
+    try {
+      await redis.ping();
+      checks.redis = 'ok';
+    } catch {
+      checks.redis = 'fail';
+    }
 
     const allOk = Object.values(checks).every((v) => v === 'ok');
     return reply

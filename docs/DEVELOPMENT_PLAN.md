@@ -828,26 +828,30 @@ on manual trigger / tag:
 
 #### Epic M1: Project Scaffolding & Infra
 
+**Status: ✓ COMPLETE**
+
 | Task | DoD |
 |---|---|
-| M1.1 Initialize monorepo structure (`client/`, `server/`, `docker/`, `docs/`) | Directories exist, READMEs describe purpose |
-| M1.2 Set up Fastify server with TypeScript, Pino logger, health endpoint | `GET /api/health` returns 200 |
-| M1.3 Docker Compose for Postgres, Redis, Garage v2 | `docker compose up` starts all services; API can connect. Redis configured with `appendonly yes` for durability (BullMQ depends on it as production infrastructure, not just cache). |
-| M1.4 Drizzle ORM setup + initial migration (users, photos, likes, comments, feed_scores) | Migration runs; tables created; Drizzle client connects |
-| M1.5 S3 client module (upload, download, delete, presign) | Unit tests pass against Garage v2 |
-| M1.6 Configure Biome, Vitest for server | `npm run lint` and `npm test` pass |
-| M1.7 GitHub Actions CI: lint + type-check + unit tests | Green CI on push |
+| M1.1 Initialize monorepo structure (`client/`, `server/`, `docker/`, `docs/`) | ✓ Directories exist, READMEs describe purpose |
+| M1.2 Set up Fastify server with TypeScript, Pino logger, health endpoint | ✓ `GET /api/health` returns 200 |
+| M1.3 Docker Compose for Postgres, Redis, Garage v2 | ✓ `docker compose up` starts all services; API can connect. Redis configured with `appendonly yes` for durability (BullMQ depends on it as production infrastructure, not just cache). |
+| M1.4 Drizzle ORM setup + initial migration (users, photos, likes, comments, feed_scores) | ✓ Migration runs; tables created; Drizzle client connects |
+| M1.5 S3 client module (upload, download, delete, presign) | ✓ Unit tests pass against Garage v2 |
+| M1.6 Configure Biome, Vitest for server | ✓ `npm run lint` and `npm test` pass |
+| M1.7 GitHub Actions CI: lint + type-check + unit tests | ✓ Green CI on push |
 
 #### Epic M2: Authentication
 
+**Status: ✓ COMPLETE**
+
 | Task | DoD |
 |---|---|
-| M2.1 `POST /api/auth/register` — validate input (Zod), hash password, insert user, return tokens | Integration test: register → get tokens → access protected route |
-| M2.2 `POST /api/auth/login` — verify credentials, return tokens | Integration test: login with correct/incorrect credentials |
-| M2.3 `POST /api/auth/refresh` — validate refresh token, return new access token | Integration test: expired access token → refresh → new token works |
-| M2.4 `POST /api/auth/logout` — revoke refresh token in Redis | Integration test: logout → refresh fails |
-| M2.5 Auth middleware (Fastify preHandler) — verify JWT, attach user to request | Protected routes return 401 without token |
-| M2.6 Rate limiting on auth endpoints | Integration test: >10 requests → 429 |
+| M2.1 `POST /api/auth/register` — validate input (Zod), hash password, insert user, return tokens | ✓ Integration test: register → get tokens → access protected route |
+| M2.2 `POST /api/auth/login` — verify credentials, return tokens | ✓ Integration test: login with correct/incorrect credentials |
+| M2.3 `POST /api/auth/refresh` — validate refresh token, return new access token | ✓ Integration test: expired access token → refresh → new token works |
+| M2.4 `POST /api/auth/logout` — revoke refresh token in Redis | ✓ Integration test: logout → refresh fails |
+| M2.5 Auth middleware (Fastify preHandler) — verify JWT, attach user to request | ✓ Protected routes return 401 without token |
+| M2.6 Rate limiting on auth endpoints | ✓ Integration test: >10 requests → 429 |
 
 #### Epic M3: Photo Upload & Thumbnail Pipeline
 
