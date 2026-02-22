@@ -125,7 +125,7 @@ server/src/
 ### Database schema
 
 Five tables: `users`, `photos`, `likes`, `comments`, `feed_scores`. Key points:
-- `users.search_name/user/city` are `GENERATED ALWAYS AS` Postgres columns (unaccent + lower) — they are declared as regular nullable `text` in Drizzle schema but populated by the DB automatically.
+- `users.search_name/user/city` are `GENERATED ALWAYS AS` Postgres columns using `immutable_unaccent(lower(...))` for case-insensitive, diacritics-insensitive trigram search. PostgreSQL's built-in `unaccent()` is `STABLE` but generated columns require `IMMUTABLE` expressions, so we wrap it with `immutable_unaccent()` — a thin SQL wrapper in the migration. These columns are declared as regular nullable `text` in Drizzle schema but populated by the DB automatically.
 - `photos.status` lifecycle: `processing` → `ready` (or `failed`). Only `ready` photos appear in feeds and profiles.
 - `feed_scores` is a materialized read model; scores are recalculated via BullMQ cron every 5 min (M5) using the gravity formula: `likes / (hours_since_upload + 2) ^ 1.5`.
 - `photos.like_count` and `comment_count` are denormalized counters updated inline on like/comment events.
