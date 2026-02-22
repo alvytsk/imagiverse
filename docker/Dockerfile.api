@@ -1,0 +1,86 @@
+# Multi-stage Dockerfile for Fastify API
+# Optimized for security, performance, and minimal image size
+
+# ============================================================================
+# Stage 1: Dependencies (Cached layer - only rebuilds when package.json changes)
+# ============================================================================
+FROM node:20-alpine AS deps
+
+WORKDIR /app
+
+# Copy package files for all workspaces (client excluded via .dockerignore)
+COPY package*.json ./
+COPY server/package*.json ./server/
+COPY shared/package*.json ./shared/
+
+# Install production dependencies with frozen lockfile for reproducible builds
+RUN npm ci --only=production \
+    && npm cache clean --force
+
+# ============================================================================
+# Stage 2: Build (Compile TypeScript, prepare artifacts)
+# ============================================================================
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY server/package*.json ./server/
+COPY shared/package*.json ./shared/
+
+# Install all dependencies (including dev deps for TypeScript compilation)
+RUN npm ci \
+    && npm cache clean --force
+
+# Copy source code
+COPY server ./server/
+COPY shared ./shared/
+COPY tsconfig.json tsconfig.server.json ./
+
+# Build shared package first (server depends on it)
+RUN npm run build --workspace=shared 2>/dev/null || true
+
+# Build server (compile TypeScript to JavaScript)
+RUN npm run build --workspace=server
+
+# Remove dev dependencies, keeping only production deps
+RUN npm prune --production
+
+# ============================================================================
+# Stage 3: Runtime — minimal production image
+# ============================================================================
+FROM node:20-alpine AS production
+
+# Security: Create non-root user with specific UID/GID
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S apiuser -u 1001 -G nodejs
+
+WORKDIR /app
+
+# Set production environment
+ENV NODE_ENV=production
+
+# Copy only necessary artifacts from build stage
+COPY --from=build --chown=apiuser:nodejs /app/node_modules     ./node_modules
+COPY --from=build --chown=apiuser:nodejs /app/server/dist      ./server/dist
+COPY --from=build --chown=apiuser:nodejs /app/shared/dist      ./shared/dist
+COPY --from=build --chown=apiuser:nodejs /app/server/package.json ./server/
+COPY --from=build --chown=apiuser:nodejs /app/shared/package.json ./shared/
+COPY --from=build --chown=apiuser:nodejs /app/package.json     ./
+
+# Copy Drizzle migration files (needed at runtime for auto-migration on startup)
+COPY --from=build --chown=apiuser:nodejs /app/server/drizzle   ./server/drizzle
+
+# Health check: Verify API is responsive
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1
+
+# Expose API port
+EXPOSE 3000
+
+# Switch to non-root user
+USER apiuser
+
+# Run the API server
+CMD ["node", "server/dist/server.js"]

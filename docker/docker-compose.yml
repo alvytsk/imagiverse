@@ -1,0 +1,317 @@
+version: '3.8'
+
+# ============================================================================
+# Local Development Environment
+# Services: PostgreSQL, Redis, Garage v2 (S3-compatible)
+#
+# Typical dev workflow — run infra only, API + SPA natively:
+#   npm run infra:up          # starts postgres, redis, garage
+#   npm run dev:api           # starts API with hot reload (tsx watch)
+#   npm run dev:worker        # starts worker with hot reload
+#
+# Or run the full stack in Docker:
+#   docker compose up
+#
+# First-time Garage setup (run once after garage container is healthy):
+#   docker compose run --rm garage-init
+# ============================================================================
+
+services:
+  # ========================================================================
+  # Fastify API Server
+  # ========================================================================
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+      target: production
+    container_name: imagiverse-api
+
+    restart: unless-stopped
+
+    environment:
+      NODE_ENV: development
+      DEBUG: "imagiverse:*"
+
+      # Database
+      DATABASE_URL: "postgresql://imagiverse_user:imagiverse_password@postgres:5432/imagiverse"
+
+      # Redis
+      REDIS_URL: "redis://redis:6379"
+
+      # S3 (Garage v2)
+      S3_ENDPOINT: "http://garage:3900"
+      S3_BUCKET: "imagiverse-media"
+      S3_ACCESS_KEY: "dev-access-key"
+      S3_SECRET_KEY: "dev-secret-key"
+      S3_REGION: "us-east-1"
+      S3_USE_SSL: "false"
+
+      # JWT
+      JWT_SECRET: "dev-jwt-secret-change-in-production-must-be-32"
+      JWT_REFRESH_SECRET: "dev-refresh-secret-change-in-production-32"
+
+      # Server
+      API_PORT: "3000"
+      API_HOST: "0.0.0.0"
+
+    ports:
+      - "3000:3000"
+      - "9229:9229"   # Node.js debug port
+
+    volumes:
+      - ../server/src:/app/server/src:ro
+      - ../shared/src:/app/shared/src:ro
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      garage-init:
+        condition: service_completed_successfully
+
+    networks:
+      - imagiverse-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ========================================================================
+  # BullMQ Worker (Image Processing, Async Tasks)
+  # ========================================================================
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+      target: production
+    container_name: imagiverse-worker
+
+    restart: unless-stopped
+
+    environment:
+      NODE_ENV: development
+      DEBUG: "imagiverse:*"
+
+      # Database
+      DATABASE_URL: "postgresql://imagiverse_user:imagiverse_password@postgres:5432/imagiverse"
+
+      # Redis
+      REDIS_URL: "redis://redis:6379"
+
+      # S3 (Garage v2)
+      S3_ENDPOINT: "http://garage:3900"
+      S3_BUCKET: "imagiverse-media"
+      S3_ACCESS_KEY: "dev-access-key"
+      S3_SECRET_KEY: "dev-secret-key"
+      S3_REGION: "us-east-1"
+      S3_USE_SSL: "false"
+
+      # JWT (needed if worker validates tokens)
+      JWT_SECRET: "dev-jwt-secret-change-in-production-must-be-32"
+      JWT_REFRESH_SECRET: "dev-refresh-secret-change-in-production-32"
+
+      # Worker
+      WORKER_PORT: "3001"
+      WORKER_CONCURRENCY: "3"
+
+    ports:
+      - "3001:3001"
+
+    volumes:
+      - ../server/src:/app/server/src:ro
+      - ../shared/src:/app/shared/src:ro
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      garage-init:
+        condition: service_completed_successfully
+
+    networks:
+      - imagiverse-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ========================================================================
+  # PostgreSQL 16 Database
+  # ========================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: imagiverse-postgres
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: imagiverse
+      POSTGRES_USER: imagiverse_user
+      POSTGRES_PASSWORD: imagiverse_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+      TZ: UTC
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U imagiverse_user -d imagiverse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - imagiverse-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ========================================================================
+  # Redis 7 (Cache, Sessions, BullMQ Queue)
+  # appendonly yes ensures BullMQ jobs survive Redis restarts.
+  # ========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: imagiverse-redis
+
+    restart: unless-stopped
+
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --loglevel notice
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+
+    ports:
+      - "6379:6379"
+
+    volumes:
+      - redis_data:/data
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - imagiverse-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ========================================================================
+  # Garage v2 (S3-Compatible Object Storage)
+  # ========================================================================
+  garage:
+    image: dxkwxn/garage:latest
+    container_name: imagiverse-garage
+
+    restart: unless-stopped
+
+    environment:
+      GARAGE_ADMIN_TOKEN: "dev-admin-token-change-in-production"
+
+    command: >
+      garage
+      -c /etc/garage/garage.toml
+      server
+
+    ports:
+      - "3900:3900"   # S3 API
+      - "3901:3901"   # RPC (inter-node, not needed externally in dev)
+      - "3902:3902"   # Admin API
+
+    volumes:
+      - garage_data:/tmp/garage
+      - ./garage.toml:/etc/garage/garage.toml:ro
+
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3902/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+    networks:
+      - imagiverse-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ========================================================================
+  # Garage Init (one-shot: creates bucket + access key)
+  # Runs once after Garage is healthy, then exits.
+  # API and Worker depend on this completing before they start.
+  # ========================================================================
+  garage-init:
+    image: dxkwxn/garage:latest
+    container_name: imagiverse-garage-init
+
+    restart: "no"
+
+    environment:
+      GARAGE_ADMIN_URL: "http://garage:3902"
+      GARAGE_ADMIN_TOKEN: "dev-admin-token-change-in-production"
+      S3_BUCKET: "imagiverse-media"
+      S3_ACCESS_KEY: "dev-access-key"
+      S3_SECRET_KEY: "dev-secret-key"
+
+    command: >
+      sh /garage-init.sh
+
+    volumes:
+      - ./garage-init.sh:/garage-init.sh:ro
+      - ./garage.toml:/etc/garage/garage.toml:ro
+
+    depends_on:
+      garage:
+        condition: service_healthy
+
+    networks:
+      - imagiverse-network
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  garage_data:
+    driver: local
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  imagiverse-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

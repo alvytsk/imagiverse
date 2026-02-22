@@ -120,7 +120,7 @@ Go would be the pick if raw compute per dollar mattered more than velocity. Pyth
        ▼ 
 ┌──────────────┐   ┌──────────┐   ┌─────┴──────┐
 │   API GW /   │──▶│  Fastify │──▶│ S3-compat  │
-│  Nginx / LB  │   │  API     │   │ (MinIO/S3) │
+│  Nginx / LB  │   │  API     │   │ (Garage/S3)│
 └──────────────┘   └────┬─────┘   └────────────┘
                         │
           ┌─────────────┼─────────────┐
@@ -737,7 +737,7 @@ Expose Prometheus metrics via `fastify-metrics`:
 | Layer | Tool | What | Coverage Target |
 |---|---|---|---|
 | **Unit** | Vitest | Ranking formula, validators, sanitizers, helpers, Zod schemas | High (>80%) |
-| **Integration** | Vitest + Testcontainers (Postgres, Redis, MinIO) | API routes end-to-end (HTTP → DB → response). Auth flows, upload flow, feed pagination. | All endpoints |
+| **Integration** | Vitest + Testcontainers (Postgres, Redis, Garage v2) | API routes end-to-end (HTTP → DB → response). Auth flows, upload flow, feed pagination. | All endpoints |
 | **E2E** | Playwright | Login → upload → see photo in feed → like → comment → search user | Critical paths |
 | **API contract** | Zod schemas (shared) + OpenAPI spec (generated) | Request/response shapes match between frontend and backend | Auto-enforced |
 | **Frontend unit** | Vitest + React Testing Library | Component rendering, hooks, state logic | Key components |
@@ -757,8 +757,8 @@ Expose Prometheus metrics via `fastify-metrics`:
 
 | Environment | Purpose | Infra |
 |---|---|---|
-| **Local dev** | Developer machines | Docker Compose: Postgres, Redis, MinIO. API + SPA run natively (hot reload). |
-| **CI** | Automated tests | GitHub Actions. Testcontainers for Postgres/Redis/MinIO. Linting, type-check, unit, integration, E2E. |
+| **Local dev** | Developer machines | Docker Compose: Postgres, Redis, Garage v2 (S3-compatible). API + SPA run natively (hot reload). |
+| **CI** | Automated tests | GitHub Actions. Testcontainers for Postgres/Redis/Garage v2. Linting, type-check, unit, integration, E2E. |
 | **Staging** | Pre-prod validation | Mirrors prod infra (smaller instances). Deployed on every merge to `main`. |
 | **Production** | Live users | Cloud-hosted (AWS/GCP/Hetzner). Auto-scaling API pods, managed Postgres, managed Redis. |
 
@@ -766,7 +766,7 @@ Expose Prometheus metrics via `fastify-metrics`:
 
 ```
 /docker
-  docker-compose.yml          # Local dev: Postgres, Redis, MinIO
+  docker-compose.yml          # Local dev: Postgres, Redis, Garage v2
   docker-compose.ci.yml       # CI overrides
   Dockerfile.api              # Multi-stage: build → slim runtime
   Dockerfile.worker           # Same build, different entrypoint
@@ -780,7 +780,7 @@ API and Worker share the same codebase but have different Dockerfile entrypoints
 
 ```
 on push to any branch:
-  ├── Lint (ESLint + Prettier)
+  ├── Lint (Biome)
   ├── Type check (tsc --noEmit) — both client and server
   ├── Unit tests (Vitest)
   ├── Integration tests (Vitest + Testcontainers)
@@ -832,10 +832,10 @@ on manual trigger / tag:
 |---|---|
 | M1.1 Initialize monorepo structure (`client/`, `server/`, `docker/`, `docs/`) | Directories exist, READMEs describe purpose |
 | M1.2 Set up Fastify server with TypeScript, Pino logger, health endpoint | `GET /api/health` returns 200 |
-| M1.3 Docker Compose for Postgres, Redis, MinIO | `docker compose up` starts all services; API can connect. Redis configured with `appendonly yes` for durability (BullMQ depends on it as production infrastructure, not just cache). |
+| M1.3 Docker Compose for Postgres, Redis, Garage v2 | `docker compose up` starts all services; API can connect. Redis configured with `appendonly yes` for durability (BullMQ depends on it as production infrastructure, not just cache). |
 | M1.4 Drizzle ORM setup + initial migration (users, photos, likes, comments, feed_scores) | Migration runs; tables created; Drizzle client connects |
-| M1.5 S3 client module (upload, download, delete, presign) | Unit tests pass against MinIO |
-| M1.6 Configure ESLint, Prettier, Vitest for server | `npm run lint` and `npm test` pass |
+| M1.5 S3 client module (upload, download, delete, presign) | Unit tests pass against Garage v2 |
+| M1.6 Configure Biome, Vitest for server | `npm run lint` and `npm test` pass |
 | M1.7 GitHub Actions CI: lint + type-check + unit tests | Green CI on push |
 
 #### Epic M2: Authentication

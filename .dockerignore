@@ -1,0 +1,69 @@
+# Client (excluded from API/Worker Docker builds — it's a separate SPA build)
+# The client workspace is not needed in the server Docker images.
+client/
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+
+# IDEs
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+dist
+build
+.next
+out
+
+# Testing
+coverage
+.nyc_output
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+README.md
+docs
+
+# CI
+.github
+.gitlab-ci.yml
+.circleci
+Jenkinsfile
+
+# OS
+*.log
+Thumbs.db
+.DS_Store
+
+# Root files (keep only essentials)
+tsconfig*.json
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Temporary
+tmp
+temp
+.cache

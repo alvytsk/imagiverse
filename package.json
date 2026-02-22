@@ -1,0 +1,31 @@
+{
+  "name": "imagiverse",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=server",
+    "dev:worker": "npm run dev:worker --workspace=server",
+    "build": "npm run build --workspace=shared && npm run build --workspace=server",
+    "build:client": "npm run build --workspace=client",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "type-check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json",
+    "test": "npm run test --workspace=server",
+    "infra:up": "docker compose -f docker/docker-compose.yml up -d postgres redis garage",
+    "infra:down": "docker compose -f docker/docker-compose.yml down"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
