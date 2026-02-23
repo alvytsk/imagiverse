@@ -13,16 +13,31 @@ import { env } from '../config/env';
 // ============================================================================
 // S3 Client (compatible with Garage v2 via path-style addressing)
 // ============================================================================
+const s3Credentials = {
+  accessKeyId: env.S3_ACCESS_KEY,
+  secretAccessKey: env.S3_SECRET_KEY,
+};
+
 export const s3Client = new S3Client({
   endpoint: env.S3_ENDPOINT,
   region: env.S3_REGION,
-  credentials: {
-    accessKeyId: env.S3_ACCESS_KEY,
-    secretAccessKey: env.S3_SECRET_KEY,
-  },
-  // Required for Garage and other S3-compatible stores (not virtual-hosted style)
+  credentials: s3Credentials,
   forcePathStyle: true,
 });
+
+// Separate client for presigned URLs visible to the browser.
+// Inside Docker the API talks to Garage via internal hostname (e.g. http://garage:3900),
+// but presigned URLs must use a host reachable from the browser (e.g. http://localhost:3900).
+const publicEndpoint = env.S3_PUBLIC_ENDPOINT ?? env.S3_ENDPOINT;
+const s3PublicClient =
+  publicEndpoint !== env.S3_ENDPOINT
+    ? new S3Client({
+        endpoint: publicEndpoint,
+        region: env.S3_REGION,
+        credentials: s3Credentials,
+        forcePathStyle: true,
+      })
+    : s3Client;
 
 export const S3_BUCKET = env.S3_BUCKET;
 
@@ -83,7 +98,7 @@ export async function deleteObject(key: string): Promise<void> {
  * @param expiresIn - URL lifetime in seconds (default: 1 hour)
  */
 export async function getPresignedDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
-  return getSignedUrl(s3Client, new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }), {
+  return getSignedUrl(s3PublicClient, new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }), {
     expiresIn,
   });
 }
@@ -100,7 +115,7 @@ export async function getPresignedUploadUrl(
   expiresIn = 900
 ): Promise<string> {
   return getSignedUrl(
-    s3Client,
+    s3PublicClient,
     new PutObjectCommand({ Bucket: S3_BUCKET, Key: key, ContentType: contentType }),
     { expiresIn }
   );

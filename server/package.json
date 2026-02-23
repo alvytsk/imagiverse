@@ -27,6 +27,7 @@
     "@fastify/rate-limit": "^10.2.2",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.34.11",
+    "dotenv": "^17.3.1",
     "drizzle-orm": "^0.38.3",
     "fastify": "^5.2.1",
     "imagiverse-shared": "workspace:*",

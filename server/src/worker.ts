@@ -1,3 +1,4 @@
+import './load-env';
 import type { Worker } from 'bullmq';
 import Fastify from 'fastify';
 import { env } from './config/env';

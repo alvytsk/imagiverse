@@ -914,17 +914,19 @@ on manual trigger / tag:
 
 #### Epic M8: Frontend MVP
 
+**Status: ✓ COMPLETE**
+
 | Task | DoD |
 |---|---|
-| M8.1 Set up Tanstack Router, TanStack Query, Zustand, Tailwind CSS with shadcn/ui library | `npm run dev` renders shell with routing |
-| M8.2 Auth pages: Register, Login | Can register and log in; tokens managed; redirects work |
-| M8.3 Layout: Navbar (logo, search, upload button, user menu) | Responsive; shows login/register for guests, user menu for authenticated |
-| M8.4 Feed page (home): Masonry/grid of photos, infinite scroll | Loads feed, scrolls to load more, shows like count |
-| M8.5 Photo detail modal/page: full image, likes, comments | Like button works (toggle); comments list with input |
-| M8.6 Upload page: drag-and-drop / file picker, caption input, progress | Upload with preview; shows processing state; redirects to photo on ready |
-| M8.7 User profile page: avatar, info, photo grid | Navigable from feed/comments |
-| M8.8 Search page/modal: search input, user result list | Searches as user types (debounced); links to profiles |
-| M8.9 Error handling: toast notifications, error boundaries | API errors show user-friendly messages |
+| M8.1 Set up Tanstack Router, TanStack Query, Zustand, Tailwind CSS with shadcn/ui library | ✓ `npm run dev` renders shell with routing |
+| M8.2 Auth pages: Register, Login | ✓ Can register and log in; tokens managed; redirects work |
+| M8.3 Layout: Navbar (logo, search, upload button, user menu) | ✓ Responsive; shows login/register for guests, user menu for authenticated |
+| M8.4 Feed page (home): Masonry/grid of photos, infinite scroll | ✓ Loads feed, scrolls to load more, shows like count |
+| M8.5 Photo detail modal/page: full image, likes, comments | ✓ Like button works (toggle); comments list with input |
+| M8.6 Upload page: drag-and-drop / file picker, caption input, progress | ✓ Upload with preview; shows processing state; redirects to photo on ready |
+| M8.7 User profile page: avatar, info, photo grid | ✓ Navigable from feed/comments |
+| M8.8 Search page/modal: search input, user result list | ✓ Searches as user types (debounced); links to profiles |
+| M8.9 Error handling: toast notifications, error boundaries | ✓ API errors show user-friendly messages |
 
 #### Epic M9: MVP Integration & Deployment
 

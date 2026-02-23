@@ -3,15 +3,16 @@
 # Garage v2 — One-time initialization script
 #
 # Run via Docker Compose (garage-init service) or manually:
-#   docker exec imagiverse-garage sh /garage-init.sh
+#   docker compose -f docker/docker-compose.yml run --rm garage-init
 #
 # What this does:
 #   1. Waits for Garage admin API to be ready
 #   2. Gets the node ID from cluster status
 #   3. Assigns the node to a zone and applies the layout (single-node setup)
 #   4. Creates the imagiverse-media bucket
-#   5. Creates/imports the dev access key
+#   5. Creates a new API access key (Garage v2 generates the key ID/secret)
 #   6. Grants the key read/write/owner access to the bucket
+#   7. Prints the credentials — update your .env file with them
 #
 # Adjust GARAGE_ADMIN_URL and GARAGE_ADMIN_TOKEN to match your environment.
 # ============================================================================
@@ -21,8 +22,7 @@ set -e
 GARAGE_ADMIN_URL="${GARAGE_ADMIN_URL:-http://garage:3902}"
 GARAGE_ADMIN_TOKEN="${GARAGE_ADMIN_TOKEN:-dev-admin-token-change-in-production}"
 BUCKET_NAME="${S3_BUCKET:-imagiverse-media}"
-ACCESS_KEY_ID="${S3_ACCESS_KEY:-dev-access-key}"
-SECRET_KEY="${S3_SECRET_KEY:-dev-secret-key}"
+KEY_NAME="${S3_KEY_NAME:-dev-key}"
 
 AUTH_HEADER="Authorization: Bearer ${GARAGE_ADMIN_TOKEN}"
 
@@ -41,110 +41,122 @@ echo "[garage-init] Garage is ready."
 
 # ── Step 1: Get cluster status ────────────────────────────────────────────────
 echo "[garage-init] Fetching cluster status..."
-STATUS=$(curl -sf -H "$AUTH_HEADER" "${GARAGE_ADMIN_URL}/v1/status" 2>/dev/null || echo "")
+STATUS=$(curl -sf -H "$AUTH_HEADER" "${GARAGE_ADMIN_URL}/v2/GetClusterStatus" 2>/dev/null || echo "")
 
-if [ -z "$STATUS" ]; then
-  echo "[garage-init] WARNING: Could not fetch cluster status. The admin API may use a different path."
-  echo "[garage-init] Trying /v0/status..."
-  STATUS=$(curl -sf -H "$AUTH_HEADER" "${GARAGE_ADMIN_URL}/v0/status" 2>/dev/null || echo "")
-fi
-
-# Extract node ID (first 64-char hex string in the response)
-NODE_ID=$(echo "$STATUS" | grep -oE '"id":"[0-9a-f]{8,}"' | head -1 | sed 's/"id":"//;s/"//')
+NODE_ID=$(echo "$STATUS" | grep -oE '"id":\s*"[0-9a-f]{8,}"' | head -1 | sed 's/"id":[[:space:]]*"//;s/"//')
 
 if [ -z "$NODE_ID" ]; then
-  echo "[garage-init] WARNING: Could not extract node ID from status response."
+  echo "[garage-init] ERROR: Could not determine node ID."
   echo "[garage-init] Status response was: $STATUS"
-  echo "[garage-init] Attempting to use garage CLI to get node ID..."
-  NODE_ID=$(/garage -c /etc/garage/garage.toml node id 2>/dev/null | grep -oE '[0-9a-f]{8,}' | head -1 || echo "")
-fi
-
-if [ -z "$NODE_ID" ]; then
-  echo "[garage-init] ERROR: Could not determine node ID. Manual initialization required."
-  echo "[garage-init] See: https://garagehq.deuxfleurs.fr/documentation/quick-start/"
   exit 1
 fi
 echo "[garage-init] Node ID: ${NODE_ID}"
 
-# ── Step 2: Apply layout (single-node) ───────────────────────────────────────
-echo "[garage-init] Applying single-node layout..."
-LAYOUT_RESP=$(curl -sf -X POST \
-  -H "$AUTH_HEADER" \
-  -H "Content-Type: application/json" \
-  "${GARAGE_ADMIN_URL}/v1/layout" \
-  -d "[{\"id\": \"${NODE_ID}\", \"zone\": \"dc1\", \"capacity\": 10737418240}]" 2>/dev/null || echo "")
+# ── Step 2: Check if layout already applied ───────────────────────────────────
+LAYOUT=$(curl -sf -H "$AUTH_HEADER" "${GARAGE_ADMIN_URL}/v2/GetClusterLayout" 2>/dev/null || echo "")
+LAYOUT_VERSION=$(echo "$LAYOUT" | grep -oE '"version":\s*[0-9]+' | head -1 | sed 's/"version":[[:space:]]*//')
 
-if echo "$LAYOUT_RESP" | grep -qi "error"; then
-  echo "[garage-init] Layout assign returned: $LAYOUT_RESP (may already be set — continuing)"
+if [ "${LAYOUT_VERSION:-0}" -gt 0 ]; then
+  echo "[garage-init] Layout already applied (version ${LAYOUT_VERSION}), skipping layout setup."
+else
+  echo "[garage-init] Applying single-node layout..."
+  curl -sf -X POST \
+    -H "$AUTH_HEADER" \
+    -H "Content-Type: application/json" \
+    "${GARAGE_ADMIN_URL}/v2/UpdateClusterLayout" \
+    -d "{\"roles\": [{\"id\": \"${NODE_ID}\", \"zone\": \"dc1\", \"capacity\": 10737418240, \"tags\": []}]}" \
+    > /dev/null
+
+  APPLY_RESP=$(curl -sf -X POST \
+    -H "$AUTH_HEADER" \
+    -H "Content-Type: application/json" \
+    "${GARAGE_ADMIN_URL}/v2/ApplyClusterLayout" \
+    -d '{"version": 1}' 2>/dev/null || echo "")
+
+  if echo "$APPLY_RESP" | grep -qi '"code"'; then
+    echo "[garage-init] WARNING: Layout apply returned: $APPLY_RESP"
+  fi
+  echo "[garage-init] Layout step complete."
 fi
-
-APPLY_RESP=$(curl -sf -X POST \
-  -H "$AUTH_HEADER" \
-  -H "Content-Type: application/json" \
-  "${GARAGE_ADMIN_URL}/v1/layout/apply" \
-  -d '{"version": 1}' 2>/dev/null || echo "")
-
-if echo "$APPLY_RESP" | grep -qi "error"; then
-  echo "[garage-init] Layout apply returned: $APPLY_RESP (may already be applied — continuing)"
-fi
-echo "[garage-init] Layout step complete."
 
 # ── Step 3: Create bucket ─────────────────────────────────────────────────────
 echo "[garage-init] Creating bucket: ${BUCKET_NAME}..."
 BUCKET_RESP=$(curl -sf -X POST \
   -H "$AUTH_HEADER" \
   -H "Content-Type: application/json" \
-  "${GARAGE_ADMIN_URL}/v1/bucket" \
+  "${GARAGE_ADMIN_URL}/v2/CreateBucket" \
   -d "{\"globalAlias\": \"${BUCKET_NAME}\"}" 2>/dev/null || echo "")
 
-if echo "$BUCKET_RESP" | grep -qi "error\|already"; then
-  echo "[garage-init] Bucket response: $BUCKET_RESP (may already exist — continuing)"
+if echo "$BUCKET_RESP" | grep -qi '"code"'; then
+  echo "[garage-init] Bucket may already exist: $BUCKET_RESP"
 fi
 echo "[garage-init] Bucket step complete."
 
-# ── Step 4: Create/import access key ─────────────────────────────────────────
-echo "[garage-init] Creating access key: ${ACCESS_KEY_ID}..."
-# Garage v1 supports key import via POST /v1/key?import
-KEY_RESP=$(curl -sf -X POST \
-  -H "$AUTH_HEADER" \
-  -H "Content-Type: application/json" \
-  "${GARAGE_ADMIN_URL}/v1/key?import" \
-  -d "{\"name\": \"dev-key\", \"accessKeyId\": \"${ACCESS_KEY_ID}\", \"secretAccessKey\": \"${SECRET_KEY}\"}" \
-  2>/dev/null || echo "")
-
-if echo "$KEY_RESP" | grep -qi "error\|already\|exists"; then
-  echo "[garage-init] Key response: $KEY_RESP (key may already exist — continuing)"
-fi
-echo "[garage-init] Key step complete."
-
-# ── Step 5: Get bucket ID and grant access ────────────────────────────────────
-echo "[garage-init] Fetching bucket ID for access grant..."
+# ── Step 4: Get bucket ID ─────────────────────────────────────────────────────
 BUCKET_INFO=$(curl -sf \
   -H "$AUTH_HEADER" \
-  "${GARAGE_ADMIN_URL}/v1/bucket?alias=${BUCKET_NAME}" 2>/dev/null || echo "")
+  "${GARAGE_ADMIN_URL}/v2/GetBucketInfo?globalAlias=${BUCKET_NAME}" 2>/dev/null || echo "")
 
-BUCKET_ID=$(echo "$BUCKET_INFO" | grep -oE '"id":"[^"]+"' | head -1 | sed 's/"id":"//;s/"//')
+BUCKET_ID=$(echo "$BUCKET_INFO" | grep -oE '"id":\s*"[^"]+"' | head -1 | sed 's/"id":[[:space:]]*"//;s/"//')
 
-if [ -n "$BUCKET_ID" ]; then
-  echo "[garage-init] Granting access: key=${ACCESS_KEY_ID} → bucket=${BUCKET_ID}..."
-  ALLOW_RESP=$(curl -sf -X POST \
-    -H "$AUTH_HEADER" \
-    -H "Content-Type: application/json" \
-    "${GARAGE_ADMIN_URL}/v1/bucket/allow" \
-    -d "{\"bucketId\": \"${BUCKET_ID}\", \"accessKeyId\": \"${ACCESS_KEY_ID}\", \"read\": true, \"write\": true, \"owner\": true}" \
-    2>/dev/null || echo "")
-
-  if echo "$ALLOW_RESP" | grep -qi "error"; then
-    echo "[garage-init] Allow response: $ALLOW_RESP (may already be allowed — continuing)"
-  fi
-  echo "[garage-init] Access grant complete."
-else
-  echo "[garage-init] WARNING: Could not fetch bucket ID. Grant access manually:"
-  echo "  garage bucket allow ${BUCKET_NAME} --read --write --owner --key ${ACCESS_KEY_ID}"
+if [ -z "$BUCKET_ID" ]; then
+  echo "[garage-init] ERROR: Could not fetch bucket ID for '${BUCKET_NAME}'."
+  exit 1
 fi
 
+# ── Step 5: Check if key already exists ───────────────────────────────────────
+EXISTING_KEYS=$(curl -sf -H "$AUTH_HEADER" "${GARAGE_ADMIN_URL}/v2/ListKeys" 2>/dev/null || echo "[]")
+
+if echo "$EXISTING_KEYS" | grep -q "\"name\".*\"${KEY_NAME}\""; then
+  echo "[garage-init] Key '${KEY_NAME}' already exists. Skipping key creation."
+  ACCESS_KEY_ID=$(echo "$EXISTING_KEYS" | tr -d ' \n' | grep -oE '"id":"GK[^"]+"' | head -1 | sed 's/"id":"//;s/"//')
+  echo "[garage-init] Existing key: ${ACCESS_KEY_ID}"
+else
+  echo "[garage-init] Creating access key: ${KEY_NAME}..."
+  KEY_RESP=$(curl -sf -X POST \
+    -H "$AUTH_HEADER" \
+    -H "Content-Type: application/json" \
+    "${GARAGE_ADMIN_URL}/v2/CreateKey" \
+    -d "{\"name\": \"${KEY_NAME}\"}" 2>/dev/null || echo "")
+
+  ACCESS_KEY_ID=$(echo "$KEY_RESP" | grep -oE '"accessKeyId":\s*"[^"]+"' | sed 's/"accessKeyId":[[:space:]]*"//;s/"//')
+  SECRET_KEY=$(echo "$KEY_RESP" | grep -oE '"secretAccessKey":\s*"[^"]+"' | sed 's/"secretAccessKey":[[:space:]]*"//;s/"//')
+
+  if [ -z "$ACCESS_KEY_ID" ]; then
+    echo "[garage-init] ERROR: Could not create access key."
+    echo "[garage-init] Response: $KEY_RESP"
+    exit 1
+  fi
+
+  echo "[garage-init] Key created successfully."
+fi
+
+# ── Step 6: Grant access ──────────────────────────────────────────────────────
+echo "[garage-init] Granting access: key=${ACCESS_KEY_ID} → bucket=${BUCKET_ID}..."
+ALLOW_RESP=$(curl -sf -X POST \
+  -H "$AUTH_HEADER" \
+  -H "Content-Type: application/json" \
+  "${GARAGE_ADMIN_URL}/v2/AllowBucketKey" \
+  -d "{\"bucketId\": \"${BUCKET_ID}\", \"accessKeyId\": \"${ACCESS_KEY_ID}\", \"permissions\": {\"read\": true, \"write\": true, \"owner\": true}}" \
+  2>/dev/null || echo "")
+
+if echo "$ALLOW_RESP" | grep -qi '"code"'; then
+  echo "[garage-init] WARNING: Allow response: $ALLOW_RESP"
+fi
+echo "[garage-init] Access grant complete."
+
+# ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
-echo "[garage-init] ✅ Garage initialization complete!"
-echo "[garage-init] S3 endpoint:  ${GARAGE_ADMIN_URL%:3902}:3900"
-echo "[garage-init] Bucket:       ${BUCKET_NAME}"
-echo "[garage-init] Access key:   ${ACCESS_KEY_ID}"
+echo "[garage-init] ============================================="
+echo "[garage-init] Garage initialization complete!"
+echo "[garage-init] S3 endpoint:    http://localhost:3900"
+echo "[garage-init] Bucket:         ${BUCKET_NAME}"
+echo "[garage-init] Access key ID:  ${ACCESS_KEY_ID}"
+if [ -n "$SECRET_KEY" ]; then
+  echo "[garage-init] Secret key:     ${SECRET_KEY}"
+  echo "[garage-init]"
+  echo "[garage-init] UPDATE your .env file:"
+  echo "[garage-init]   S3_ACCESS_KEY=${ACCESS_KEY_ID}"
+  echo "[garage-init]   S3_SECRET_KEY=${SECRET_KEY}"
+fi
+echo "[garage-init] ============================================="

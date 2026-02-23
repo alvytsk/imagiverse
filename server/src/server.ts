@@ -1,3 +1,4 @@
+import './load-env';
 import cookiePlugin from '@fastify/cookie';
 import corsPlugin from '@fastify/cors';
 import helmetPlugin from '@fastify/helmet';
