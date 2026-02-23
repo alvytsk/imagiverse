@@ -916,7 +916,7 @@ on manual trigger / tag:
 
 | Task | DoD |
 |---|---|
-| M8.1 Set up React Router, TanStack Query, Zustand, Tailwind CSS | `npm run dev` renders shell with routing |
+| M8.1 Set up Tanstack Router, TanStack Query, Zustand, Tailwind CSS with shadcn/ui library | `npm run dev` renders shell with routing |
 | M8.2 Auth pages: Register, Login | Can register and log in; tokens managed; redirects work |
 | M8.3 Layout: Navbar (logo, search, upload button, user menu) | Responsive; shows login/register for guests, user menu for authenticated |
 | M8.4 Feed page (home): Masonry/grid of photos, infinite scroll | Loads feed, scrolls to load more, shows like count |
