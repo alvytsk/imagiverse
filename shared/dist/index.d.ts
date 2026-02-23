@@ -1,4 +1,7 @@
 export * from './schemas/auth';
+export * from './schemas/comments';
+export * from './schemas/feed';
+export * from './schemas/likes';
 export * from './schemas/photos';
 export * from './schemas/users';
 export * from './types/api';

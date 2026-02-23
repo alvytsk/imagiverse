@@ -1,6 +1,8 @@
 import type { Worker } from 'bullmq';
 import Fastify from 'fastify';
 import { env } from './config/env';
+import { createFeedScoreWorker } from './jobs/feed-score.processor';
+import { feedScoreQueue } from './jobs/queue';
 import { createThumbnailWorker } from './jobs/thumbnail.processor';
 
 // ============================================================================
@@ -32,6 +34,7 @@ healthServer.get('/health', async () => ({
 }));
 
 let thumbnailWorker: Worker | undefined;
+let feedScoreWorker: Worker | undefined;
 
 async function start(): Promise<void> {
   // Start health HTTP server
@@ -41,11 +44,25 @@ async function start(): Promise<void> {
   // Start BullMQ workers
   thumbnailWorker = createThumbnailWorker();
   healthServer.log.info('Thumbnail worker started');
+
+  feedScoreWorker = createFeedScoreWorker();
+  healthServer.log.info('Feed score recalc worker started');
+
+  // Schedule feed score recalculation every 5 minutes
+  await feedScoreQueue.upsertJobScheduler(
+    'feed-score-cron',
+    { every: 5 * 60 * 1000 },
+    { name: 'recalc' }
+  );
+  healthServer.log.info('Feed score cron scheduled (every 5 min)');
 }
 
 const shutdown = async (signal: string) => {
   healthServer.log.info(`Received ${signal}, shutting down worker...`);
   // Gracefully drain BullMQ workers before closing health server
+  if (feedScoreWorker) {
+    await feedScoreWorker.close();
+  }
   if (thumbnailWorker) {
     await thumbnailWorker.close();
   }

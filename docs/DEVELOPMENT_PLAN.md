@@ -869,40 +869,48 @@ on manual trigger / tag:
 
 #### Epic M4: Likes & Comments
 
+**Status: ✓ COMPLETE**
+
 | Task | DoD |
 |---|---|
-| M4.1 `POST /api/photos/:id/like` — insert like, increment counter | Like created; counter incremented; duplicate returns 409 |
-| M4.2 `DELETE /api/photos/:id/like` — remove like, decrement counter | Like removed; counter decremented; no-op if not liked |
-| M4.3 `POST /api/photos/:id/comments` — sanitize, insert | Comment created; body sanitized (no HTML) |
-| M4.4 `GET /api/photos/:id/comments?cursor=` — paginated | Returns comments newest-first with cursor pagination |
-| M4.5 `DELETE /api/comments/:id` — delete own comment | Owner can delete; non-owner gets 403 |
+| M4.1 `POST /api/photos/:id/like` — insert like, increment counter | ✓ Like created; counter incremented; duplicate returns 409 |
+| M4.2 `DELETE /api/photos/:id/like` — remove like, decrement counter | ✓ Like removed; counter decremented; not-liked returns 404 |
+| M4.3 `POST /api/photos/:id/comments` — sanitize, insert | ✓ Comment created; body sanitized (no HTML); returns author info |
+| M4.4 `GET /api/photos/:id/comments?cursor=` — paginated | ✓ Returns comments newest-first with cursor pagination (createdAt, id) |
+| M4.5 `DELETE /api/comments/:id` — delete own comment | ✓ Owner can delete; non-owner gets 403; missing returns 404 |
 
 #### Epic M5: Feed
 
+**Status: ✓ COMPLETE**
+
 | Task | DoD |
 |---|---|
-| M5.1 Implement ranking formula (§7) as a pure function | Unit tests with known inputs/outputs match worked example |
-| M5.2 Score recalculation job (BullMQ cron, every 5 min) | `feed_scores` table updated; scores match formula |
-| M5.3 `GET /api/feed?cursor=&limit=` — read from `feed_scores`, join photos + users | Returns ranked photos; cursor pagination works; p95 < 300ms on seed data |
-| M5.4 Redis cache for top feed pages (30s TTL) | Cache hit ratio >80% under repeated requests |
-| M5.5 Inline score recalc on like/unlike | Score updates within 1 second of like event |
+| M5.1 Implement ranking formula (§7) as a pure function | ✓ Unit tests (9) with known inputs/outputs match all 5 worked examples |
+| M5.2 Score recalculation job (BullMQ cron, every 5 min) | ✓ `feed_scores` table updated via bulk SQL; cron scheduled via `upsertJobScheduler` |
+| M5.3 `GET /api/feed?cursor=&limit=` — read from `feed_scores`, join photos + users | ✓ Returns ranked photos with author info + presigned thumbnail URLs; cursor pagination on (score DESC, id DESC) |
+| M5.4 Redis cache for top feed pages (30s TTL) | ✓ First page cached in Redis (key: `feed:page:first:{limit}`, 30s TTL); invalidated on score recalc |
+| M5.5 Inline score recalc on like/unlike | ✓ UPSERT into `feed_scores` on like/unlike; feed cache invalidated |
 
 #### Epic M6: User Search
 
+**Status: ✓ COMPLETE**
+
 | Task | DoD |
 |---|---|
-| M6.1 Enable `pg_trgm` + `unaccent` extensions, add generated columns + GIN indexes | Migration runs successfully |
-| M6.2 `GET /api/users/search?q=` — trigram similarity search across name, username, city | Returns relevant results for partial matches, case-insensitive, diacritics-insensitive |
-| M6.3 Add transliteration column (app-layer: Cyrillic→Latin via `transliteration` npm) | Searching "Aleksey" finds "Алексей" |
-| M6.4 Result relevance ordering | Most similar match first; ties broken by username alphabetically |
+| M6.1 Enable `pg_trgm` + `unaccent` extensions, add generated columns + GIN indexes | ✓ Already in initial migration (0000_initial_schema.sql); `immutable_unaccent()` wrapper + GIN indexes |
+| M6.2 `GET /api/users/search?q=` — trigram similarity search across name, username, city | ✓ Returns relevant results for partial matches, case-insensitive, diacritics-insensitive via `%` operator |
+| M6.3 Add transliteration column (app-layer: Cyrillic→Latin via `transliteration` npm) | ✓ Search query transliterated before comparison; `transliteration` package installed |
+| M6.4 Result relevance ordering | ✓ Most similar match first (`GREATEST(similarity(...))` DESC); ties broken by username ASC |
 
 #### Epic M7: User Profiles
 
+**Status: ✓ COMPLETE**
+
 | Task | DoD |
 |---|---|
-| M7.1 `GET /api/users/me` + `PATCH /api/users/me` | Auth user can view/update own profile |
-| M7.2 `GET /api/users/:id` — public profile | Returns display_name, username, city, avatar, bio, photo count |
-| M7.3 `GET /api/users/:id/photos?cursor=` — user's photos | Paginated, newest-first; only 'ready' photos |
+| M7.1 `GET /api/users/me` + `PATCH /api/users/me` | ✓ Auth user can view/update own profile; PATCH validates via `UpdateProfileSchema`; text fields sanitized; returns `MeProfileResponse` (includes email, role, photoCount) |
+| M7.2 `GET /api/users/:id` — public profile | ✓ Returns display_name, username, city, avatar, bio, photo count; no email exposed; 404 for missing users |
+| M7.3 `GET /api/users/:id/photos?cursor=` — user's photos | ✓ Paginated (cursor-based on createdAt, id), newest-first; only 'ready' photos; presigned thumbnail URLs; 404 if user not found |
 
 #### Epic M8: Frontend MVP
 

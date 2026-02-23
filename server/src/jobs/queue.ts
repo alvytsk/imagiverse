@@ -44,3 +44,18 @@ export const thumbnailQueue = new Queue<ThumbnailJobData>(THUMBNAIL_QUEUE_NAME, 
     },
   },
 });
+
+// ============================================================================
+// Feed Score Recalculation Queue (cron — every 5 min)
+// ============================================================================
+
+export const FEED_SCORE_QUEUE_NAME = 'feed-score-recalc';
+
+export const feedScoreQueue = new Queue(FEED_SCORE_QUEUE_NAME, {
+  connection: bullConnection,
+  defaultJobOptions: {
+    attempts: 1,
+    removeOnComplete: true,
+    removeOnFail: 100,
+  },
+});

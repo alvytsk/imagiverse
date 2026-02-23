@@ -18,3 +18,16 @@ export interface PublicUser {
   photoCount: number;
   createdAt: string;
 }
+
+export interface MeProfileResponse {
+  id: string;
+  email: string;
+  username: string;
+  displayName: string;
+  city: string | null;
+  avatarUrl: string | null;
+  bio: string | null;
+  role: string;
+  photoCount: number;
+  createdAt: string;
+}

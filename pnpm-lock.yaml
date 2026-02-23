@@ -105,6 +105,9 @@ importers:
       sharp:
         specifier: ^0.33.5
         version: 0.33.5
+      transliteration:
+        specifier: ^2.6.1
+        version: 2.6.1
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -2470,6 +2473,11 @@ packages:
   toad-cache@3.7.0:
     resolution: {integrity: sha512-/m8M+2BJUpoJdgAHoG+baCwBT+tf2VraSfkBgl0Y00qIWt41DJ8R5B8nsEw0I58YwF5IZH6z24/2TobDKnqSWw==}
     engines: {node: '>=12'}
+
+  transliteration@2.6.1:
+    resolution: {integrity: sha512-hJ9BhrQAOnNTbpOr1MxsNjZISkn7ppvF5TKUeFmTE1mG4ZPD/XVxF0L0LUoIUCWmQyxH0gJpVtfYLAWf298U9w==}
+    engines: {node: '>=20.0.0'}
+    hasBin: true
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
@@ -5134,6 +5142,8 @@ snapshots:
   tinyspy@4.0.4: {}
 
   toad-cache@3.7.0: {}
+
+  transliteration@2.6.1: {}
 
   tslib@2.8.1: {}
 

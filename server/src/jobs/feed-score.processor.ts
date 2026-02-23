@@ -1,0 +1,72 @@
+import { Worker } from 'bullmq';
+import { sql } from 'drizzle-orm';
+import { db } from '../db/index';
+import { redis } from '../plugins/redis';
+import { bullConnection, FEED_SCORE_QUEUE_NAME } from './queue';
+
+const GRAVITY = 1.5;
+const BOOST_HOURS = 2;
+
+/**
+ * Recalculates ALL feed scores in a single bulk SQL statement.
+ *
+ * The formula: score = like_count / (hours_since_upload + 2) ^ 1.5
+ *
+ * Uses Postgres `EXTRACT(EPOCH ...)` for precise hour calculation.
+ * UPSERTs into feed_scores so new photos are included automatically.
+ */
+export async function recalculateAllFeedScores(): Promise<void> {
+  await db.execute(sql`
+    INSERT INTO feed_scores (photo_id, score, updated_at)
+    SELECT
+      p.id,
+      CASE
+        WHEN p.like_count = 0 THEN 0
+        ELSE p.like_count::double precision
+             / POWER(
+                 GREATEST(EXTRACT(EPOCH FROM (now() - p.created_at)) / 3600, 0)
+                 + ${BOOST_HOURS},
+                 ${GRAVITY}
+               )
+      END,
+      now()
+    FROM photos p
+    WHERE p.status = 'ready'
+    ON CONFLICT (photo_id) DO UPDATE SET
+      score = EXCLUDED.score,
+      updated_at = EXCLUDED.updated_at
+  `);
+
+  // Invalidate cached feed pages
+  await invalidateFeedCache();
+}
+
+/** Removes all cached feed pages from Redis. */
+export async function invalidateFeedCache(): Promise<void> {
+  const keys = await redis.keys('feed:page:*');
+  if (keys.length > 0) {
+    await redis.del(...keys);
+  }
+}
+
+/**
+ * Creates a BullMQ Worker for the feed-score-recalc cron job.
+ */
+export function createFeedScoreWorker(): Worker {
+  const worker = new Worker(
+    FEED_SCORE_QUEUE_NAME,
+    async () => {
+      await recalculateAllFeedScores();
+    },
+    {
+      connection: bullConnection,
+      concurrency: 1,
+    }
+  );
+
+  worker.on('failed', (_job, err) => {
+    console.error('Feed score recalc failed:', err.message);
+  });
+
+  return worker;
+}

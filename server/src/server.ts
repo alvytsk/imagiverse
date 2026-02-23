@@ -7,8 +7,12 @@ import { env } from './config/env';
 import { runMigrations } from './db/migrate';
 import { authenticate } from './middleware/auth';
 import { authRoutes } from './modules/auth/auth.routes';
+import { commentsRoutes } from './modules/comments/comments.routes';
+import { feedRoutes } from './modules/feed/feed.routes';
 import { healthRoutes } from './modules/health/health.routes';
+import { likesRoutes } from './modules/likes/likes.routes';
 import { photoRoutes } from './modules/photos/photos.routes';
+import { usersRoutes } from './modules/users/users.routes';
 import { redis } from './plugins/redis';
 import { ensureBucketExists } from './plugins/s3';
 
@@ -65,6 +69,10 @@ async function start(): Promise<void> {
   await server.register(healthRoutes);
   await server.register(authRoutes, { prefix: '/api' });
   await server.register(photoRoutes, { prefix: '/api' });
+  await server.register(likesRoutes, { prefix: '/api' });
+  await server.register(commentsRoutes, { prefix: '/api' });
+  await server.register(feedRoutes, { prefix: '/api' });
+  await server.register(usersRoutes, { prefix: '/api' });
 
   // ── Start listening ────────────────────────────────────────────────────────
   await server.listen({ port: env.API_PORT, host: env.API_HOST });
