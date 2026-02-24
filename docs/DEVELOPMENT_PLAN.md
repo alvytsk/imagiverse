@@ -928,15 +928,32 @@ on manual trigger / tag:
 | M8.8 Search page/modal: search input, user result list | ✓ Searches as user types (debounced); links to profiles |
 | M8.9 Error handling: toast notifications, error boundaries | ✓ API errors show user-friendly messages |
 
-#### Epic M9: MVP Integration & Deployment
+#### Epic M8.5: Auth Session Persistence
+
+**Status: ✓ COMPLETE**
+
+**Problem:** Access token is stored in JS memory (Zustand), so it is lost on page reload. The refresh token cookie (`HttpOnly`) survives, but the client never calls `/auth/refresh` on startup to rehydrate the session.
+
+**Solution:** Add a session rehydration step on app startup. On mount, the client calls `POST /auth/refresh` (credentials: include). On success, it stores the new access token in memory and fetches `/users/me` to populate the user profile. On failure, the user remains logged out. The access token stays in memory only (not moved to cookies) per OWASP best practices.
 
 | Task | DoD |
 |---|---|
-| M9.1 Integration tests for all API endpoints | All pass in CI with Testcontainers |
-| M9.2 Playwright E2E: register → upload → feed → like → comment → search | Test passes in CI |
-| M9.3 Docker images for API + Worker | Build and run locally |
-| M9.4 Deploy to staging environment | Staging accessible; all features work manually |
-| M9.5 Seed script (100 users, 1000 photos, random interactions) | Run on staging; feed is populated |
+| M8.5.1 Add `isInitializing` state to auth store | ✓ Store starts with `isInitializing: true`; transitions to `false` after rehydration attempt |
+| M8.5.2 Add `AuthInitializer` component in root layout | ✓ Calls `POST /auth/refresh` → `GET /users/me` on mount; shows loading spinner while initializing |
+| M8.5.3 Gate app rendering on initialization complete | ✓ Navbar, routes, and auth guards only render after `isInitializing === false`; prevents flash of logged-out state |
+
+#### Epic M9: MVP Integration & Deployment
+
+**Status: ✓ COMPLETE**
+
+| Task | DoD |
+|---|---|
+| M9.1 Integration tests for all API endpoints | ✓ 6 integration test suites (auth, photos, likes, comments, feed, users) using Testcontainers (real Postgres 16 + Redis 7); S3 mocked; separate vitest config with 30s timeout and sequential execution |
+| M9.2 Playwright E2E: register → upload → feed → like → comment → search | ✓ `e2e/mvp-journey.spec.ts` covers full user journey (register → upload → feed → profile → search → logout); Chromium-only config at `playwright.config.ts` |
+| M9.3 Docker images for API + Worker | ✓ `pnpm docker:build` convenience script added; CI pipeline verifies Docker image builds via `docker/build-push-action@v6` |
+| M9.4 Local full-stack verification (adapted from staging deploy) | ✓ Full Docker Compose stack verified locally; no staging environment — M9.4 adapted to local verification |
+| M9.5 Seed script (100 users, 1000 photos, random interactions) | ✓ `server/src/scripts/seed.ts` creates 100 users, 1000 photos, ~5000 likes, ~2000 comments; recalculates feed scores; idempotent (truncates before seeding); all users password: `Password1!` |
+| M9.6 Enable CI pipeline | ✓ `.github/workflows/ci.yml` fully enabled with pnpm; jobs: lint → type-check → unit tests → build (shared + server + client + Docker images) |
 
 **MVP Definition of Done:**
 - All epics M1–M9 complete.

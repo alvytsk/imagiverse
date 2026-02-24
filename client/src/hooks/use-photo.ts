@@ -20,6 +20,10 @@ export function usePhoto(photoId: string) {
     queryKey: ['photos', photoId],
     queryFn: () =>
       api.get<PhotoResponse>(`/photos/${photoId}`, { auth: false }),
+    refetchInterval: (query) => {
+      if (query.state.data?.status === 'processing') return 2000;
+      return false;
+    },
   });
 }
 
@@ -29,26 +33,54 @@ export function useLikePhoto(photoId: string) {
 
   const likeMutation = useMutation({
     mutationFn: () => api.post(`/photos/${photoId}/like`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['photos', photoId] });
-      queryClient.invalidateQueries({ queryKey: ['feed'] });
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['photos', photoId] });
+      const previous = queryClient.getQueryData<PhotoResponse>(['photos', photoId]);
+      if (previous) {
+        queryClient.setQueryData<PhotoResponse>(['photos', photoId], {
+          ...previous,
+          likeCount: previous.likeCount + 1,
+        });
+      }
+      return { previous };
     },
-    onError: (err) => {
+    onError: (err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['photos', photoId], context.previous);
+      }
       if (err instanceof ApiClientError && err.code === 'ALREADY_LIKED') {
         return;
       }
       toast.error('Failed to like photo');
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['photos', photoId] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+    },
   });
 
   const unlikeMutation = useMutation({
     mutationFn: () => api.delete(`/photos/${photoId}/like`),
-    onSuccess: () => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['photos', photoId] });
+      const previous = queryClient.getQueryData<PhotoResponse>(['photos', photoId]);
+      if (previous) {
+        queryClient.setQueryData<PhotoResponse>(['photos', photoId], {
+          ...previous,
+          likeCount: Math.max(0, previous.likeCount - 1),
+        });
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['photos', photoId], context.previous);
+      }
+      toast.error('Failed to unlike photo');
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['photos', photoId] });
       queryClient.invalidateQueries({ queryKey: ['feed'] });
-    },
-    onError: () => {
-      toast.error('Failed to unlike photo');
     },
   });
 

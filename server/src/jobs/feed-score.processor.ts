@@ -6,11 +6,15 @@ import { bullConnection, FEED_SCORE_QUEUE_NAME } from './queue';
 
 const GRAVITY = 1.5;
 const BOOST_HOURS = 2;
+const FRESHNESS_BOOST = 1;
 
 /**
  * Recalculates ALL feed scores in a single bulk SQL statement.
  *
- * The formula: score = like_count / (hours_since_upload + 2) ^ 1.5
+ * The formula: score = (like_count + FRESHNESS_BOOST) / (hours_since_upload + 2) ^ 1.5
+ *
+ * FRESHNESS_BOOST gives every photo a non-zero starting score so fresh
+ * uploads appear in the feed before they earn any likes.
  *
  * Uses Postgres `EXTRACT(EPOCH ...)` for precise hour calculation.
  * UPSERTs into feed_scores so new photos are included automatically.
@@ -20,15 +24,12 @@ export async function recalculateAllFeedScores(): Promise<void> {
     INSERT INTO feed_scores (photo_id, score, updated_at)
     SELECT
       p.id,
-      CASE
-        WHEN p.like_count = 0 THEN 0
-        ELSE p.like_count::double precision
-             / POWER(
-                 GREATEST(EXTRACT(EPOCH FROM (now() - p.created_at)) / 3600, 0)
-                 + ${BOOST_HOURS},
-                 ${GRAVITY}
-               )
-      END,
+      (p.like_count + ${FRESHNESS_BOOST})::double precision
+           / POWER(
+               GREATEST(EXTRACT(EPOCH FROM (now() - p.created_at)) / 3600, 0)
+               + ${BOOST_HOURS},
+               ${GRAVITY}
+             ),
       now()
     FROM photos p
     WHERE p.status = 'ready'

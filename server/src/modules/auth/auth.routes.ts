@@ -26,6 +26,9 @@ const COOKIE_OPTIONS = {
 };
 
 const AUTH_RATE_LIMIT = { max: 10, timeWindow: '15 minutes' };
+// Refresh is called on every page load + every 15-min token expiry,
+// so it needs a much higher ceiling than login/register.
+const REFRESH_RATE_LIMIT = { max: 30, timeWindow: '1 minute' };
 
 function validationError(issues: Array<{ path: (string | number)[]; message: string }>) {
   return {
@@ -129,7 +132,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
   // ── POST /auth/refresh ─────────────────────────────────────────────────────
   fastify.post('/auth/refresh', {
-    config: { rateLimit: AUTH_RATE_LIMIT },
+    config: { rateLimit: REFRESH_RATE_LIMIT },
     handler: async (request, reply) => {
       const token = request.cookies.refreshToken;
       if (!token) {

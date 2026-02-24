@@ -5,14 +5,14 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['src/**/*.test.ts'],
-    exclude: ['src/**/*.integration.test.ts'],
+    include: ['src/**/*.integration.test.ts'],
     setupFiles: ['./src/test-setup.ts'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts', 'src/**/*.integration.test.ts', 'src/**/index.ts'],
+    testTimeout: 30_000,
+    hookTimeout: 120_000,
+    // Run integration tests sequentially — they share containers
+    pool: 'forks',
+    poolOptions: {
+      forks: { singleFork: true },
     },
     alias: {
       'imagiverse-shared': path.resolve(__dirname, '../shared/src/index.ts'),

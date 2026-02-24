@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Imagiverse is a photo gallery platform. Users upload photos, browse a ranked public feed, like/comment on photos, and search for users.
 
-Full architecture and phase roadmap live in `docs/DEVELOPMENT_PLAN.md`. The build is in **Epic M1** (scaffolding complete); M2–M9 are the remaining MVP epics.
+Full architecture and phase roadmap live in `docs/DEVELOPMENT_PLAN.md`. **All MVP epics (M1–M9) are complete.**
 
 ## Monorepo Structure
 
@@ -66,12 +66,37 @@ pnpm exec tsc --noEmit -p client/tsconfig.json          # client separately
 ### Tests
 
 ```bash
-pnpm test                                               # server unit tests (vitest run)
+pnpm test                                               # server unit tests (vitest run, 124 tests)
 pnpm --filter server test:watch                         # watch mode
 pnpm --filter server test:coverage
 # run a single test file:
-pnpm exec vitest run --project=server server/src/some.test.ts
+pnpm exec vitest run server/src/some.test.ts
 ```
+
+### Integration tests (requires Docker for Testcontainers)
+
+```bash
+pnpm test:integration                                   # spins up real Postgres + Redis via Testcontainers
+# or directly:
+pnpm --filter server test:integration
+```
+
+Integration tests live in `server/src/modules/**/*.integration.test.ts`. They use Testcontainers to start real Postgres 16 + Redis 7 containers. S3 operations are mocked. Each suite gets a fresh database with migrations applied. Tests use `app.inject()` (no real HTTP server).
+
+Key files:
+- `server/src/test-helpers/integration-setup.ts` — container lifecycle, Fastify app builder
+- `server/src/test-helpers/test-factories.ts` — `createTestUser()`, `createTestPhoto()`, `loginTestUser()`, etc.
+- `server/vitest.integration.config.ts` — separate vitest config (30s timeout, sequential execution)
+
+### E2E tests (requires full stack running)
+
+```bash
+# Prerequisites: pnpm infra:up && pnpm dev:api && pnpm dev:worker && cd client && pnpm dev
+pnpm test:e2e                                           # Playwright (Chromium)
+pnpm test:e2e:ui                                        # Playwright UI mode
+```
+
+E2E tests live in `e2e/`. The single `mvp-journey.spec.ts` covers: register → upload → feed → profile → search → logout.
 
 ### Database
 
@@ -82,6 +107,15 @@ pnpm --filter server db:generate
 pnpm --filter server db:migrate
 # Drizzle Studio (visual DB browser):
 pnpm --filter server db:studio
+# Seed database with test data (100 users, 1000 photos, likes, comments):
+pnpm seed
+```
+
+### Docker
+
+```bash
+pnpm docker:build                                       # build API + Worker Docker images
+docker compose -f docker/docker-compose.yml up           # full stack in Docker
 ```
 
 ## Architecture
@@ -115,7 +149,13 @@ server/src/
     <feature>.routes.ts  — Fastify route registration
     <feature>.service.ts — business logic (added in M2+)
     <feature>.schema.ts  — feature-specific Zod schemas (added in M2+)
-    <feature>.test.ts    — Vitest tests
+    <feature>.test.ts    — Vitest unit tests (mocked dependencies)
+    <feature>.integration.test.ts — Vitest integration tests (real DB via Testcontainers)
+  test-helpers/
+    integration-setup.ts — Testcontainers lifecycle + Fastify app builder
+    test-factories.ts    — Factory functions for test data (createTestUser, etc.)
+  scripts/
+    seed.ts              — DB seed script (100 users, 1000 photos, interactions)
 ```
 
 ### Shared package

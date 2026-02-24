@@ -1,5 +1,5 @@
-import { Link, useParams } from '@tanstack/react-router';
-import { Heart, MessageCircle, Trash2 } from 'lucide-react';
+import { Link, useParams, useRouterState } from '@tanstack/react-router';
+import { AlertTriangle, Heart, Loader2, MessageCircle, Trash2, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -19,6 +19,9 @@ import { useAuthStore } from '@/stores/auth-store';
 
 export function PhotoDetailPage() {
   const { photoId } = useParams({ from: '/photos/$photoId' });
+  const localPreview = useRouterState({
+    select: (s) => (s.location.state as { localPreview?: string })?.localPreview,
+  });
   const { data: photo, isLoading, error } = usePhoto(photoId);
   const { likeMutation, unlikeMutation, isAuthenticated } =
     useLikePhoto(photoId);
@@ -37,6 +40,29 @@ export function PhotoDetailPage() {
     return <PhotoDetailSkeleton />;
   }
 
+  if (photo.status === 'failed') {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <AlertTriangle className="h-12 w-12 text-destructive" />
+        <p className="text-lg font-medium">Photo processing failed</p>
+        <p className="text-muted-foreground">
+          Something went wrong while processing your photo. Please try uploading again.
+        </p>
+        <Button asChild>
+          <Link to="/upload">
+            <Upload className="h-4 w-4 mr-2" />
+            Upload again
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+
+  const isProcessing = photo.status === 'processing';
+  const imageSrc = isProcessing
+    ? localPreview
+    : (photo.thumbnails.large ?? photo.thumbnails.medium ?? '');
+
   const handleLikeToggle = async () => {
     if (!isAuthenticated) {
       toast.info('Please log in to like photos');
@@ -51,17 +77,29 @@ export function PhotoDetailPage() {
     }
   };
 
-  const displayLikes = photo.likeCount + (liked ? 1 : 0);
+  const displayLikes = photo.likeCount;
 
   return (
     <div className="mx-auto max-w-5xl">
       <div className="grid gap-6 md:grid-cols-[1fr_380px]">
-        <div className="overflow-hidden rounded-lg border bg-black">
-          <img
-            src={photo.thumbnails.large ?? photo.thumbnails.medium ?? ''}
-            alt={photo.caption ?? 'Photo'}
-            className="w-full object-contain max-h-[80vh]"
-          />
+        <div className="overflow-hidden rounded-lg border bg-black relative">
+          {imageSrc ? (
+            <img
+              src={imageSrc}
+              alt={photo.caption ?? 'Photo'}
+              className={`w-full object-contain max-h-[80vh] ${isProcessing ? 'opacity-60 blur-[2px]' : ''}`}
+            />
+          ) : (
+            <Skeleton className="aspect-[4/3] w-full" />
+          )}
+          {isProcessing && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-white drop-shadow-lg" />
+              <span className="text-sm font-medium text-white drop-shadow-lg">
+                Processing your photo...
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col">
@@ -94,7 +132,7 @@ export function PhotoDetailPage() {
               variant="ghost"
               size="sm"
               onClick={handleLikeToggle}
-              disabled={likeMutation.isPending || unlikeMutation.isPending}
+              disabled={isProcessing || likeMutation.isPending || unlikeMutation.isPending}
               className={liked ? 'text-red-500' : ''}
             >
               <Heart

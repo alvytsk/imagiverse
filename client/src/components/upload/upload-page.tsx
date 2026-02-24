@@ -88,7 +88,11 @@ export function UploadPage() {
 
       const data = await res.json();
       toast.success('Photo uploaded! It will appear once processing is complete.');
-      navigate({ to: '/photos/$photoId', params: { photoId: data.id } });
+      navigate({
+        to: '/photos/$photoId',
+        params: { photoId: data.id },
+        state: { localPreview: preview },
+      });
     } catch (err) {
       if (err instanceof ApiClientError) {
         toast.error(err.message);
