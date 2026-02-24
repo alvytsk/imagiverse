@@ -29,7 +29,7 @@ AUTH_HEADER="Authorization: Bearer ${GARAGE_ADMIN_TOKEN}"
 echo "[garage-init] Waiting for Garage admin API at ${GARAGE_ADMIN_URL}..."
 MAX_WAIT=60
 WAITED=0
-until curl -sf "${GARAGE_ADMIN_URL}/health" > /dev/null 2>&1; do
+until curl -s -H "$AUTH_HEADER" "${GARAGE_ADMIN_URL}/v2/GetClusterStatus" 2>/dev/null | grep -q '"nodes"'; do
   if [ "$WAITED" -ge "$MAX_WAIT" ]; then
     echo "[garage-init] ERROR: Garage did not become ready within ${MAX_WAIT}s"
     exit 1

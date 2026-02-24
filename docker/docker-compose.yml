@@ -41,8 +41,8 @@ services:
       S3_ENDPOINT: "http://garage:3900"
       S3_PUBLIC_ENDPOINT: "http://localhost:3900"
       S3_BUCKET: "imagiverse-media"
-      S3_ACCESS_KEY: "GK869c1c0f9d19ce4064d9caab"
-      S3_SECRET_KEY: "7ea6e30c08939e7cc010aaa3709b77c7f416ef52b2ad0c8cdfcc087dcc037072"
+      S3_ACCESS_KEY: "GK25576cafa10b6cbe05d52eac"
+      S3_SECRET_KEY: "0fbdfa83eccae55f3c654bb05d981652742a8399cf62e210b4cf1f0a7a987bda"
       S3_REGION: "us-east-1"
       S3_USE_SSL: "false"
 
@@ -105,8 +105,8 @@ services:
       S3_ENDPOINT: "http://garage:3900"
       S3_PUBLIC_ENDPOINT: "http://localhost:3900"
       S3_BUCKET: "imagiverse-media"
-      S3_ACCESS_KEY: "GK869c1c0f9d19ce4064d9caab"
-      S3_SECRET_KEY: "7ea6e30c08939e7cc010aaa3709b77c7f416ef52b2ad0c8cdfcc087dcc037072"
+      S3_ACCESS_KEY: "GK25576cafa10b6cbe05d52eac"
+      S3_SECRET_KEY: "0fbdfa83eccae55f3c654bb05d981652742a8399cf62e210b4cf1f0a7a987bda"
       S3_REGION: "us-east-1"
       S3_USE_SSL: "false"
 
