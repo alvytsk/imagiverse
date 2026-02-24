@@ -10,9 +10,10 @@
 #   2. Gets the node ID from cluster status
 #   3. Assigns the node to a zone and applies the layout (single-node setup)
 #   4. Creates the imagiverse-media bucket
-#   5. Creates a new API access key (Garage v2 generates the key ID/secret)
+#   5. Creates or reuses an API access key
 #   6. Grants the key read/write/owner access to the bucket
-#   7. Prints the credentials — update your .env file with them
+#   7. Writes credentials to /shared/s3-credentials.env (Docker volume)
+#   8. Prints the credentials to stdout (for native dev copy-paste workflow)
 #
 # Adjust GARAGE_ADMIN_URL and GARAGE_ADMIN_TOKEN to match your environment.
 # ============================================================================
@@ -23,12 +24,15 @@ GARAGE_ADMIN_URL="${GARAGE_ADMIN_URL:-http://garage:3902}"
 GARAGE_ADMIN_TOKEN="${GARAGE_ADMIN_TOKEN:-dev-admin-token-change-in-production}"
 BUCKET_NAME="${S3_BUCKET:-imagiverse-media}"
 KEY_NAME="${S3_KEY_NAME:-dev-key}"
+CREDENTIALS_FILE="/shared/s3-credentials.env"
 
 AUTH_HEADER="Authorization: Bearer ${GARAGE_ADMIN_TOKEN}"
 
 echo "[garage-init] Waiting for Garage admin API at ${GARAGE_ADMIN_URL}..."
 MAX_WAIT=60
 WAITED=0
+# Use GetClusterStatus instead of /health — the health endpoint returns 503
+# until layout is applied, but we need the admin API to apply it.
 until curl -s -H "$AUTH_HEADER" "${GARAGE_ADMIN_URL}/v2/GetClusterStatus" 2>/dev/null | grep -q '"nodes"'; do
   if [ "$WAITED" -ge "$MAX_WAIT" ]; then
     echo "[garage-init] ERROR: Garage did not become ready within ${MAX_WAIT}s"
@@ -104,14 +108,55 @@ if [ -z "$BUCKET_ID" ]; then
   exit 1
 fi
 
-# ── Step 5: Check if key already exists ───────────────────────────────────────
-EXISTING_KEYS=$(curl -sf -H "$AUTH_HEADER" "${GARAGE_ADMIN_URL}/v2/ListKeys" 2>/dev/null || echo "[]")
+# ── Step 5: Create or reuse access key ────────────────────────────────────────
+# Strategy:
+#   - If credentials file exists AND the key still exists in Garage → reuse
+#   - If credentials file missing but key name exists → delete old key, create new
+#   - If nothing exists → create new key
+# This ensures we always have both the key ID and secret available.
 
-if echo "$EXISTING_KEYS" | grep -q "\"name\".*\"${KEY_NAME}\""; then
-  echo "[garage-init] Key '${KEY_NAME}' already exists. Skipping key creation."
-  ACCESS_KEY_ID=$(echo "$EXISTING_KEYS" | tr -d ' \n' | grep -oE '"id":"GK[^"]+"' | head -1 | sed 's/"id":"//;s/"//')
-  echo "[garage-init] Existing key: ${ACCESS_KEY_ID}"
-else
+ACCESS_KEY_ID=""
+SECRET_KEY=""
+NEED_NEW_KEY=true
+
+# Check if we have saved credentials from a previous run
+if [ -f "$CREDENTIALS_FILE" ]; then
+  SAVED_ACCESS_KEY=$(grep '^S3_ACCESS_KEY=' "$CREDENTIALS_FILE" | cut -d= -f2)
+  SAVED_SECRET_KEY=$(grep '^S3_SECRET_KEY=' "$CREDENTIALS_FILE" | cut -d= -f2)
+
+  if [ -n "$SAVED_ACCESS_KEY" ] && [ -n "$SAVED_SECRET_KEY" ]; then
+    # Verify the key still exists in Garage via ListKeys
+    EXISTING_KEYS=$(curl -sf -H "$AUTH_HEADER" \
+      "${GARAGE_ADMIN_URL}/v2/ListKeys" 2>/dev/null || echo "[]")
+
+    if echo "$EXISTING_KEYS" | grep -q "\"id\".*\"${SAVED_ACCESS_KEY}\""; then
+      echo "[garage-init] Reusing existing key from ${CREDENTIALS_FILE}: ${SAVED_ACCESS_KEY}"
+      ACCESS_KEY_ID="$SAVED_ACCESS_KEY"
+      SECRET_KEY="$SAVED_SECRET_KEY"
+      NEED_NEW_KEY=false
+    else
+      echo "[garage-init] Saved key ${SAVED_ACCESS_KEY} no longer exists in Garage, will create new."
+    fi
+  fi
+fi
+
+if [ "$NEED_NEW_KEY" = true ]; then
+  # Check if a key with our name already exists (but we don't have the secret)
+  EXISTING_KEYS=$(curl -sf -H "$AUTH_HEADER" "${GARAGE_ADMIN_URL}/v2/ListKeys" 2>/dev/null || echo "[]")
+
+  if echo "$EXISTING_KEYS" | grep -q "\"name\".*\"${KEY_NAME}\""; then
+    # Extract the existing key ID so we can delete it
+    OLD_KEY_ID=$(echo "$EXISTING_KEYS" | tr -d ' \n' | grep -oE '"id":"GK[^"]+"' | head -1 | sed 's/"id":"//;s/"//')
+    if [ -n "$OLD_KEY_ID" ]; then
+      echo "[garage-init] Deleting orphaned key '${KEY_NAME}' (${OLD_KEY_ID}) — secret was lost."
+      curl -sf -X POST \
+        -H "$AUTH_HEADER" \
+        -H "Content-Type: application/json" \
+        "${GARAGE_ADMIN_URL}/v2/DeleteKey" \
+        -d "{\"id\": \"${OLD_KEY_ID}\"}" > /dev/null 2>&1 || true
+    fi
+  fi
+
   echo "[garage-init] Creating access key: ${KEY_NAME}..."
   KEY_RESP=$(curl -sf -X POST \
     -H "$AUTH_HEADER" \
@@ -144,6 +189,16 @@ if echo "$ALLOW_RESP" | grep -qi '"code"'; then
   echo "[garage-init] WARNING: Allow response: $ALLOW_RESP"
 fi
 echo "[garage-init] Access grant complete."
+
+# ── Step 7: Persist credentials to shared volume ─────────────────────────────
+if [ -d "/shared" ]; then
+  echo "S3_ACCESS_KEY=${ACCESS_KEY_ID}" > "$CREDENTIALS_FILE"
+  echo "S3_SECRET_KEY=${SECRET_KEY}" >> "$CREDENTIALS_FILE"
+  chmod 644 "$CREDENTIALS_FILE"
+  echo "[garage-init] Credentials written to ${CREDENTIALS_FILE}"
+else
+  echo "[garage-init] /shared not mounted — skipping credential file (native dev mode)."
+fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""

@@ -61,6 +61,9 @@ COPY --from=build --chown=workeruser:nodejs /deploy/node_modules ./node_modules
 COPY --from=build --chown=workeruser:nodejs /deploy/dist          ./dist
 COPY --from=build --chown=workeruser:nodejs /deploy/package.json  ./
 
+# Entrypoint: sources S3 credentials from shared volume before starting Node
+COPY --chmod=755 docker/entrypoint.sh /entrypoint.sh
+
 # Health check: Verify worker health endpoint is responsive
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -sf http://localhost:3001/health || exit 1
@@ -72,4 +75,5 @@ EXPOSE 3001
 USER workeruser
 
 # Run the worker process
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["node", "dist/worker.js"]

@@ -54,6 +54,9 @@ COPY --from=build --chown=apiuser:nodejs /deploy/dist          ./dist
 COPY --from=build --chown=apiuser:nodejs /deploy/drizzle       ./drizzle
 COPY --from=build --chown=apiuser:nodejs /deploy/package.json  ./
 
+# Entrypoint: sources S3 credentials from shared volume before starting Node
+COPY --chmod=755 docker/entrypoint.sh /entrypoint.sh
+
 # Health check: Verify API is responsive
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1
@@ -65,4 +68,5 @@ EXPOSE 3000
 USER apiuser
 
 # Run the API server
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["node", "dist/server.js"]

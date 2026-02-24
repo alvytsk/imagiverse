@@ -19,7 +19,8 @@ services:
       dockerfile: docker/Dockerfile.api
       target: production
 
-    volumes: []
+    volumes:
+      - s3_credentials:/shared:ro
 
     depends_on:
       postgres:
@@ -45,7 +46,8 @@ services:
       dockerfile: docker/Dockerfile.worker
       target: production
 
-    volumes: []
+    volumes:
+      - s3_credentials:/shared:ro
 
     depends_on:
       postgres:
@@ -103,3 +105,4 @@ services:
     volumes:
       - ./garage-init.sh:/garage-init.sh:ro
       - ./garage.toml:/etc/garage/garage.toml:ro
+      - s3_credentials:/shared
