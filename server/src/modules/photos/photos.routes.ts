@@ -99,7 +99,14 @@ export async function photoRoutes(fastify: FastifyInstance): Promise<void> {
         caption = captionField.value;
       }
 
-      const photo = await uploadPhoto({ userId, fileBuffer, mimeType, sizeBytes, caption });
+      const photo = await uploadPhoto({
+        userId,
+        fileBuffer,
+        mimeType,
+        sizeBytes,
+        caption,
+        correlationId: request.id,
+      });
 
       return reply.status(201).send({ id: photo.id, status: photo.status });
     },

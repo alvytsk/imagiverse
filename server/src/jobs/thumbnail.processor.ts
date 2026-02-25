@@ -5,6 +5,7 @@ import sharp from 'sharp';
 import { env } from '../config/env';
 import { db } from '../db/index';
 import { photos } from '../db/schema/index';
+import { logger } from '../lib/logger';
 import { downloadObject, S3Keys, uploadObject } from '../plugins/s3';
 import { bullConnection, THUMBNAIL_QUEUE_NAME, type ThumbnailJobData } from './queue';
 
@@ -25,7 +26,10 @@ const WEBP_QUALITY = 80;
  * photo row with thumbnail keys, dimensions, and `status = 'ready'`.
  */
 export async function processThumbnailJob(job: Job<ThumbnailJobData>): Promise<void> {
-  const { photoId, originalKey } = job.data;
+  const { photoId, originalKey, correlationId } = job.data;
+  const jobLog = logger.child({ jobId: job.id, photoId, correlationId });
+
+  jobLog.info('thumbnail job started');
 
   // 1. Download original from S3
   const originalBuffer = await downloadObject(originalKey);
@@ -74,6 +78,8 @@ export async function processThumbnailJob(job: Job<ThumbnailJobData>): Promise<v
       updatedAt: new Date(),
     })
     .where(eq(photos.id, photoId));
+
+  jobLog.info('thumbnail job completed');
 }
 
 /**
@@ -93,20 +99,25 @@ export function createThumbnailWorker(): Worker<ThumbnailJobData> {
 
   worker.on('failed', async (job, err) => {
     if (!job) return;
+    const failLog = logger.child({
+      jobId: job.id,
+      photoId: job.data.photoId,
+      correlationId: job.data.correlationId,
+      attempt: job.attemptsMade,
+    });
     const isFinalAttempt = job.attemptsMade >= (job.opts.attempts ?? 1);
     if (isFinalAttempt) {
-      console.error(
-        `Thumbnail job ${job.id} failed permanently for photo ${job.data.photoId}:`,
-        err.message
-      );
+      failLog.error({ err: err.message }, 'thumbnail job failed permanently');
       try {
         await db
           .update(photos)
           .set({ status: 'failed', updatedAt: new Date() })
           .where(eq(photos.id, job.data.photoId));
       } catch (dbErr) {
-        console.error(`Failed to mark photo ${job.data.photoId} as failed:`, dbErr);
+        failLog.error({ err: dbErr }, 'failed to mark photo as failed');
       }
+    } else {
+      failLog.warn({ err: err.message }, 'thumbnail job attempt failed, will retry');
     }
   });
 

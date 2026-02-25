@@ -9,6 +9,10 @@ const envSchema = z.object({
 
   // Database
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  // Optional: PgBouncer URL for pooled connections (transaction mode).
+  // When set, the query client connects here with `prepare: false`.
+  // Migrations always use DATABASE_URL (direct Postgres — advisory locks require a persistent session).
+  DATABASE_POOL_URL: z.string().optional(),
 
   // Redis
   REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
