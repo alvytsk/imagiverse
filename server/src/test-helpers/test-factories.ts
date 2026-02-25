@@ -9,7 +9,15 @@ import bcrypt from 'bcryptjs';
 import { eq, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import type { NotificationPayload, NotificationType } from 'imagiverse-shared';
-import { comments, feedScores, likes, notifications, photos, users } from '../db/schema/index';
+import {
+  comments,
+  feedScores,
+  likes,
+  notifications,
+  photos,
+  reports,
+  users,
+} from '../db/schema/index';
 import { calculateFeedScore } from '../modules/feed/feed.formula';
 import type { IntegrationContext } from './integration-setup';
 
@@ -34,6 +42,7 @@ export async function createTestUser(
     city: string | null;
     bio: string | null;
     password: string;
+    role: string;
   }> = {}
 ): Promise<TestUser> {
   const password = overrides.password ?? DEFAULT_PASSWORD;
@@ -43,11 +52,18 @@ export async function createTestUser(
     .insert(users)
     .values({
       email: overrides.email ?? faker.internet.email().toLowerCase(),
-      username: overrides.username ?? faker.internet.username().toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 20),
+      username:
+        overrides.username ??
+        faker.internet
+          .username()
+          .toLowerCase()
+          .replace(/[^a-z0-9_]/g, '_')
+          .slice(0, 20),
       displayName: overrides.displayName ?? faker.person.fullName(),
       city: overrides.city !== undefined ? overrides.city : faker.location.city(),
       bio: overrides.bio !== undefined ? overrides.bio : faker.lorem.sentence(),
       passwordHash,
+      role: overrides.role ?? 'user',
     })
     .returning({
       id: users.id,
@@ -91,9 +107,18 @@ export async function createTestPhoto(
       caption: overrides.caption !== undefined ? overrides.caption : faker.lorem.sentence(),
       status: overrides.status ?? 'ready',
       originalKey: overrides.originalKey ?? `originals/${userId}/${photoId}.jpg`,
-      thumbSmallKey: overrides.thumbSmallKey !== undefined ? overrides.thumbSmallKey : `thumbs/${photoId}/small.webp`,
-      thumbMediumKey: overrides.thumbMediumKey !== undefined ? overrides.thumbMediumKey : `thumbs/${photoId}/medium.webp`,
-      thumbLargeKey: overrides.thumbLargeKey !== undefined ? overrides.thumbLargeKey : `thumbs/${photoId}/large.webp`,
+      thumbSmallKey:
+        overrides.thumbSmallKey !== undefined
+          ? overrides.thumbSmallKey
+          : `thumbs/${photoId}/small.webp`,
+      thumbMediumKey:
+        overrides.thumbMediumKey !== undefined
+          ? overrides.thumbMediumKey
+          : `thumbs/${photoId}/medium.webp`,
+      thumbLargeKey:
+        overrides.thumbLargeKey !== undefined
+          ? overrides.thumbLargeKey
+          : `thumbs/${photoId}/large.webp`,
       width: overrides.width !== undefined ? overrides.width : 1920,
       height: overrides.height !== undefined ? overrides.height : 1080,
       mimeType: 'image/jpeg',
@@ -205,6 +230,41 @@ export async function createTestNotification(
     ...notification,
     payload: notification.payload as NotificationPayload,
   };
+}
+
+export interface TestReport {
+  id: string;
+  photoId: string;
+  reporterId: string;
+  reason: string;
+  status: string;
+}
+
+export async function createTestReport(
+  db: IntegrationContext['db'],
+  photoId: string,
+  reporterId: string,
+  overrides: Partial<{
+    reason: string;
+    status: string;
+  }> = {}
+): Promise<TestReport> {
+  const [report] = await db
+    .insert(reports)
+    .values({
+      photoId,
+      reporterId,
+      reason: overrides.reason ?? faker.lorem.sentence(),
+      status: overrides.status ?? 'pending',
+    })
+    .returning({
+      id: reports.id,
+      photoId: reports.photoId,
+      reporterId: reports.reporterId,
+      reason: reports.reason,
+      status: reports.status,
+    });
+  return report;
 }
 
 /**

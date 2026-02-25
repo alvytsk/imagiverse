@@ -28,6 +28,7 @@ export const users = pgTable(
     avatarUrl: text('avatar_url'),
     bio: text('bio'),
     role: text('role').notNull().default('user'),
+    bannedAt: timestamp('banned_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     // Generated search columns (managed by migration SQL via GENERATED ALWAYS AS)
@@ -109,10 +110,14 @@ export const comments = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     body: text('body').notNull(),
+    flagged: boolean('flagged').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index('idx_comments_photo').on(table.photoId, table.createdAt)]
+  (table) => [
+    index('idx_comments_photo').on(table.photoId, table.createdAt),
+    index('idx_comments_flagged').on(table.flagged),
+  ]
 );
 
 // ============================================================================
@@ -152,6 +157,32 @@ export const notifications = pgTable(
 );
 
 // ============================================================================
+// Reports (photo moderation)
+// ============================================================================
+export const reports = pgTable(
+  'reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    photoId: uuid('photo_id')
+      .notNull()
+      .references(() => photos.id, { onDelete: 'cascade' }),
+    reporterId: uuid('reporter_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    reason: text('reason').notNull(),
+    status: text('status').notNull().default('pending'),
+    resolvedBy: uuid('resolved_by').references(() => users.id, { onDelete: 'set null' }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_reports_photo').on(table.photoId),
+    index('idx_reports_status').on(table.status),
+    index('idx_reports_created').on(table.createdAt),
+  ]
+);
+
+// ============================================================================
 // Relations (for Drizzle relational queries)
 // ============================================================================
 export const usersRelations = relations(users, ({ many }) => ({
@@ -159,6 +190,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   likes: many(likes),
   comments: many(comments),
   notifications: many(notifications),
+  reports: many(reports),
 }));
 
 export const photosRelations = relations(photos, ({ one, many }) => ({
@@ -166,6 +198,7 @@ export const photosRelations = relations(photos, ({ one, many }) => ({
   likes: many(likes),
   comments: many(comments),
   feedScore: one(feedScores, { fields: [photos.id], references: [feedScores.photoId] }),
+  reports: many(reports),
 }));
 
 export const likesRelations = relations(likes, ({ one }) => ({
@@ -180,4 +213,9 @@ export const commentsRelations = relations(comments, ({ one }) => ({
 
 export const notificationsRelations = relations(notifications, ({ one }) => ({
   user: one(users, { fields: [notifications.userId], references: [users.id] }),
+}));
+
+export const reportsRelations = relations(reports, ({ one }) => ({
+  photo: one(photos, { fields: [reports.photoId], references: [photos.id] }),
+  reporter: one(users, { fields: [reports.reporterId], references: [users.id] }),
 }));

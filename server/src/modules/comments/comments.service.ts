@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, or, type SQL, sql } from 'drizzle-orm';
+import { and, count, desc, eq, lt, or, type SQL, sql } from 'drizzle-orm';
 import type { CommentResponse, PaginatedResponse } from 'imagiverse-shared';
 import sanitizeHtml from 'sanitize-html';
 import { db } from '../../db/index';
@@ -9,6 +9,10 @@ import { createNotification } from '../notifications/notifications.service';
 
 const DEFAULT_PAGE_LIMIT = 20;
 const MAX_PAGE_LIMIT = 50;
+const URL_PATTERN = /https?:\/\/[^\s]+/gi;
+const SPAM_URL_THRESHOLD = 3;
+const DUPLICATE_WINDOW_HOURS = 1;
+const DUPLICATE_THRESHOLD = 3;
 
 // ── Sanitization ─────────────────────────────────────────────────────────────
 
@@ -53,6 +57,34 @@ export async function getReadyPhoto(photoId: string) {
   return photo;
 }
 
+// ── Spam detection ───────────────────────────────────────────────────────────
+
+/**
+ * Checks if a comment should be auto-flagged as spam:
+ * 1. Contains more than 3 URLs
+ * 2. User posted the same text in multiple comments within the last hour
+ */
+export async function detectSpam(userId: string, body: string): Promise<boolean> {
+  const urlMatches = body.match(URL_PATTERN);
+  if (urlMatches && urlMatches.length > SPAM_URL_THRESHOLD) return true;
+
+  const windowStart = new Date(Date.now() - DUPLICATE_WINDOW_HOURS * 60 * 60 * 1000);
+  const [result] = await db
+    .select({ value: count() })
+    .from(comments)
+    .where(
+      and(
+        eq(comments.userId, userId),
+        eq(comments.body, body),
+        sql`${comments.createdAt} >= ${windowStart}`
+      )
+    );
+
+  if (result.value >= DUPLICATE_THRESHOLD) return true;
+
+  return false;
+}
+
 // ── CRUD ─────────────────────────────────────────────────────────────────────
 
 export async function createComment(
@@ -62,9 +94,11 @@ export async function createComment(
 ): Promise<CommentResponse> {
   const sanitizedBody = sanitizeCommentBody(body);
 
+  const flagged = await detectSpam(userId, sanitizedBody);
+
   const [comment] = await db
     .insert(comments)
-    .values({ userId, photoId, body: sanitizedBody })
+    .values({ userId, photoId, body: sanitizedBody, flagged })
     .returning();
 
   // Increment denormalized counter

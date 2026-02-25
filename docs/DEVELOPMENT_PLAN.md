@@ -991,13 +991,15 @@ on manual trigger / tag:
 
 #### Epic V1.2: Admin & Moderation
 
+**Status: ✓ COMPLETE**
+
 | Task | DoD |
 |---|---|
-| V1.2.1 Admin role + protected admin routes | Admin endpoints return 403 for non-admins |
-| V1.2.2 Admin API: list/flag/delete photos, ban users, view failed jobs | All endpoints work; tested |
-| V1.2.3 Basic admin UI (separate route in SPA or simple React page) | Admin can review flagged content, delete photos, ban users |
-| V1.2.4 Photo reporting: `POST /api/photos/:id/report` | Users can report photos; reports visible in admin panel |
-| V1.2.5 Basic spam detection: flag comments with >3 URLs, duplicate text across comments | Auto-flagged; admin notified |
+| V1.2.1 Admin role + protected admin routes | ✓ `requireAdmin` middleware (`server/src/middleware/require-admin.ts`) checks `request.user.role === 'admin'`; returns 403 for non-admins. All admin endpoints use `preHandler: [authenticate, requireAdmin]`. |
+| V1.2.2 Admin API: list/flag/delete photos, ban users, view failed jobs | ✓ Full admin module at `server/src/modules/admin/`. Endpoints: `GET /api/admin/stats`, `GET/PATCH /api/admin/users`, `GET/DELETE /api/admin/photos`, `GET/PATCH /api/admin/reports`, `GET/DELETE /api/admin/comments`. Users can be banned/unbanned; photos soft-deleted; reports resolved (reviewed/dismissed). Integration tests cover all endpoints. |
+| V1.2.3 Basic admin UI (separate route in SPA or simple React page) | ✓ `/admin` route with tabbed UI (Overview, Users, Photos, Reports, Comments). Dashboard shows stats (total users, photos, comments, pending reports, flagged comments, banned users, failed photos). Admin link in user dropdown (visible only to admin role). Protected with client-side redirect for non-admins. |
+| V1.2.4 Photo reporting: `POST /api/photos/:id/report` | ✓ `reports` table with unique constraint per user+photo; migration `0002_admin_moderation.sql`. Endpoint prevents self-reporting, returns 409 on duplicate. Reports listed and resolvable in admin panel. |
+| V1.2.5 Basic spam detection: flag comments with >3 URLs, duplicate text across comments | ✓ `detectSpam()` in `comments.service.ts` auto-flags comments with >3 URLs or identical text posted ≥3 times within 1 hour. `flagged` boolean column on `comments` table. Admin panel shows flagged comments with delete action. |
 
 #### Epic V1.3: Notifications (In-App)
 

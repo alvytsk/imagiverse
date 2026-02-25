@@ -1,5 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Camera, LogOut, Search, Upload, User } from 'lucide-react';
+import { Camera, LogOut, Search, Shield, Upload, User } from 'lucide-react';
 import { useCallback } from 'react';
 
 import { NotificationBell } from '@/components/notifications/notification-bell';
@@ -96,6 +96,17 @@ export function Navbar() {
                   <User className="mr-2 h-4 w-4" />
                   Profile
                 </DropdownMenuItem>
+                {user?.role === 'admin' && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => navigate({ to: '/admin' })}
+                    >
+                      <Shield className="mr-2 h-4 w-4" />
+                      Admin Panel
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />
