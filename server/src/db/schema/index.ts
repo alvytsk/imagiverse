@@ -1,9 +1,11 @@
 import { relations } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -129,12 +131,34 @@ export const feedScores = pgTable(
 );
 
 // ============================================================================
+// Notifications
+// ============================================================================
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    payload: jsonb('payload').notNull(),
+    read: boolean('read').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_notifications_user_created').on(table.userId, table.createdAt, table.id),
+    index('idx_notifications_user_unread').on(table.userId),
+  ]
+);
+
+// ============================================================================
 // Relations (for Drizzle relational queries)
 // ============================================================================
 export const usersRelations = relations(users, ({ many }) => ({
   photos: many(photos),
   likes: many(likes),
   comments: many(comments),
+  notifications: many(notifications),
 }));
 
 export const photosRelations = relations(photos, ({ one, many }) => ({
@@ -152,4 +176,8 @@ export const likesRelations = relations(likes, ({ one }) => ({
 export const commentsRelations = relations(comments, ({ one }) => ({
   user: one(users, { fields: [comments.userId], references: [users.id] }),
   photo: one(photos, { fields: [comments.photoId], references: [photos.id] }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, { fields: [notifications.userId], references: [users.id] }),
 }));

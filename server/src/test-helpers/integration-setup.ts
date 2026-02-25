@@ -104,6 +104,7 @@ export function setupIntegration(): IntegrationContext {
     const { likesRoutes } = await import('../modules/likes/likes.routes');
     const { commentsRoutes } = await import('../modules/comments/comments.routes');
     const { feedRoutes } = await import('../modules/feed/feed.routes');
+    const { notificationsRoutes } = await import('../modules/notifications/notifications.routes');
     const { usersRoutes } = await import('../modules/users/users.routes');
     const { healthRoutes } = await import('../modules/health/health.routes');
 
@@ -113,6 +114,7 @@ export function setupIntegration(): IntegrationContext {
     await app.register(likesRoutes, { prefix: '/api' });
     await app.register(commentsRoutes, { prefix: '/api' });
     await app.register(feedRoutes, { prefix: '/api' });
+    await app.register(notificationsRoutes, { prefix: '/api' });
     await app.register(usersRoutes, { prefix: '/api' });
 
     await app.ready();
@@ -135,6 +137,6 @@ export function setupIntegration(): IntegrationContext {
  */
 export async function truncateAllTables(db: IntegrationContext['db']): Promise<void> {
   await db.execute(sql`
-    TRUNCATE feed_scores, comments, likes, photos, users CASCADE
+    TRUNCATE notifications, feed_scores, comments, likes, photos, users CASCADE
   `);
 }
