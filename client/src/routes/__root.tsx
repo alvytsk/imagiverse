@@ -6,12 +6,15 @@ import { Toaster } from 'sonner';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Navbar } from '@/components/layout/navbar';
 import { queryClient } from '@/lib/query-client';
+import { useResolvedTheme } from '@/stores/theme-store';
 
 export const Route = createRootRoute({
   component: RootLayout,
 });
 
 function RootLayout() {
+  const resolvedTheme = useResolvedTheme();
+
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
@@ -30,7 +33,13 @@ function RootLayout() {
           </main>
         </div>
       </ErrorBoundary>
-      <Toaster position="bottom-right" richColors closeButton />
+      <Toaster
+        position="bottom-right"
+        richColors
+        closeButton
+        theme={resolvedTheme}
+        toastOptions={{ className: 'rounded-xl' }}
+      />
     </QueryClientProvider>
   );
 }

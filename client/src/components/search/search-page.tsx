@@ -1,6 +1,6 @@
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import type { PublicUser } from 'imagiverse-shared';
-import { MapPin, Search } from 'lucide-react';
+import { MapPin, Search, Users } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -45,28 +45,28 @@ export function SearchPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="relative mb-8">
-        <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+        <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
         <Input
           ref={inputRef}
           value={inputValue}
           onChange={(e) => handleInputChange(e.target.value)}
           placeholder="Search users by name, username, or city..."
-          className="pl-10 h-12 text-lg"
+          className="pl-11 h-12 text-lg rounded-2xl border-transparent bg-muted/50 focus-visible:bg-background focus-visible:shadow-lg"
         />
       </div>
 
       {!q || q.length < 2 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <Search className="h-12 w-12 text-muted-foreground mb-4" />
-          <p className="text-lg font-medium">Search for users</p>
+          <Users className="h-16 w-16 text-muted-foreground/40 mb-4" />
+          <p className="text-lg font-semibold">Search for users</p>
           <p className="text-muted-foreground">
             Type at least 2 characters to search
           </p>
         </div>
       ) : isLoading ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-4 p-4">
+            <div key={i} className="flex items-center gap-4 rounded-2xl bg-card p-4">
               <Skeleton className="h-12 w-12 rounded-full" />
               <div className="space-y-2 flex-1">
                 <Skeleton className="h-4 w-32" />
@@ -81,13 +81,14 @@ export function SearchPage() {
         </div>
       ) : users.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <p className="text-lg font-medium">No users found</p>
+          <Search className="h-12 w-12 text-muted-foreground/40 mb-4" />
+          <p className="text-lg font-semibold">No users found</p>
           <p className="text-muted-foreground">
             Try different search terms
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {users.map((user) => (
             <UserCard key={user.id} user={user} />
           ))}
@@ -102,7 +103,7 @@ function UserCard({ user }: { user: PublicUser }) {
     <Link
       to="/users/$userId"
       params={{ userId: user.id }}
-      className="flex items-center gap-4 rounded-lg border p-4 transition-colors hover:bg-accent"
+      className="flex items-center gap-4 rounded-2xl border p-4 transition-all duration-200 hover:bg-accent hover:-translate-y-0.5 hover:shadow-md"
     >
       <Avatar className="h-12 w-12">
         {user.avatarUrl ? (

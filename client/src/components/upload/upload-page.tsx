@@ -120,19 +120,29 @@ export function UploadPage() {
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onClick={() => inputRef.current?.click()}
-              className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 transition-colors cursor-pointer ${
+              className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-12 transition-all duration-200 cursor-pointer ${
                 dragActive
-                  ? 'border-primary bg-primary/5'
+                  ? 'border-primary bg-primary/10 scale-[1.02]'
                   : 'border-muted-foreground/25 hover:border-primary/50'
               }`}
             >
-              <ImagePlus className="h-12 w-12 text-muted-foreground mb-4" />
+              <ImagePlus className="h-16 w-16 text-primary/50 mb-4" />
               <p className="text-lg font-medium mb-1">
                 Drop your image here or click to browse
               </p>
-              <p className="text-sm text-muted-foreground">
-                JPEG, PNG, WebP, HEIC — up to 20 MB
+              <p className="text-sm text-muted-foreground mb-3">
+                Supports JPEG, PNG, WebP, HEIC
               </p>
+              <div className="flex gap-2">
+                {['JPEG', 'PNG', 'WebP', 'HEIC'].map((fmt) => (
+                  <span
+                    key={fmt}
+                    className="rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground"
+                  >
+                    {fmt}
+                  </span>
+                ))}
+              </div>
               <input
                 ref={inputRef}
                 type="file"
@@ -145,11 +155,11 @@ export function UploadPage() {
               />
             </div>
           ) : (
-            <div className="relative">
+            <div className="relative rounded-2xl bg-muted/30 dark:bg-muted/10 overflow-hidden flex items-center justify-center min-h-[200px]">
               <img
                 src={preview!}
                 alt="Preview"
-                className="w-full rounded-lg object-contain max-h-[500px]"
+                className="max-w-full max-h-[500px] object-contain"
               />
               <Button
                 variant="destructive"
