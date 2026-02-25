@@ -108,6 +108,17 @@ Worker (BullMQ)
 | `pnpm --filter server db:studio` | Open Drizzle Studio (visual browser) |
 | `pnpm seed` | Seed database (100 users, 1000 photos) |
 
+### Admin access
+
+After running `pnpm seed`, the first user is an admin: log in as **user1@example.com** / **Password1!** and open **Admin Panel** from the user menu.
+
+**Grant admin to an existing user (without re-seeding):**
+
+- **Drizzle Studio:** `pnpm --filter server db:studio` → open table `users` → set `role` to `admin` for the desired user.
+- **SQL:** `UPDATE users SET role = 'admin' WHERE email = 'your@email.com';`
+
+Then log in again (or refresh the page so the new role is reflected in the session).
+
 ### Code Quality
 
 | Command | Purpose |
