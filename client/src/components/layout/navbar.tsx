@@ -2,6 +2,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { Camera, LogOut, Search, Upload, User } from 'lucide-react';
 import { useCallback } from 'react';
 
+import { ThemeToggle } from '@/components/theme-toggle';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,11 +25,13 @@ export function Navbar() {
   }, [logout, navigate]);
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex h-14 items-center gap-4 px-4">
-        <Link to="/" className="flex items-center gap-2 font-bold text-lg">
+    <header className="sticky top-0 z-40 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto flex h-16 items-center gap-4 px-4">
+        <Link to="/" className="flex items-center gap-2 font-extrabold text-lg">
           <Camera className="h-6 w-6 text-primary" />
-          <span className="hidden sm:inline">Imagiverse</span>
+          <span className="hidden sm:inline bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+            Imagiverse
+          </span>
         </Link>
 
         <div className="flex-1" />
@@ -39,6 +42,8 @@ export function Navbar() {
             <span className="sr-only">Search</span>
           </Link>
         </Button>
+
+        <ThemeToggle />
 
         {isAuthenticated ? (
           <>

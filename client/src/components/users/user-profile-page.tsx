@@ -1,5 +1,5 @@
 import { Link, useParams } from '@tanstack/react-router';
-import { Camera, MapPin } from 'lucide-react';
+import { Camera, Heart, MapPin } from 'lucide-react';
 import { useCallback, useEffect, useRef } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -55,40 +55,45 @@ export function UserProfilePage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="flex flex-col items-center gap-4 pb-8 sm:flex-row sm:items-start sm:gap-8">
-        <Avatar className="h-24 w-24 sm:h-32 sm:w-32">
-          {user.avatarUrl ? (
-            <AvatarImage src={user.avatarUrl} alt={user.displayName} />
-          ) : null}
-          <AvatarFallback className="text-3xl">
-            {user.displayName.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-
-        <div className="flex flex-col items-center sm:items-start gap-2">
-          <h1 className="text-2xl font-bold">{user.displayName}</h1>
-          <p className="text-muted-foreground">@{user.username}</p>
-
-          {user.city && (
-            <p className="flex items-center gap-1 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4" />
-              {user.city}
-            </p>
-          )}
-
-          {user.bio && <p className="text-sm max-w-md">{user.bio}</p>}
-
-          <div className="flex items-center gap-1 text-sm text-muted-foreground pt-2">
-            <Camera className="h-4 w-4" />
-            <span>{user.photoCount} photos</span>
-          </div>
+      {/* Banner */}
+      <div className="relative mb-16">
+        <div className="h-32 rounded-2xl bg-gradient-to-r from-primary/20 via-primary/10 to-accent/20" />
+        <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 sm:left-8 sm:translate-x-0">
+          <Avatar className="h-28 w-28 ring-4 ring-background">
+            {user.avatarUrl ? (
+              <AvatarImage src={user.avatarUrl} alt={user.displayName} />
+            ) : null}
+            <AvatarFallback className="text-3xl">
+              {user.displayName.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
         </div>
       </div>
 
+      {/* User info */}
+      <div className="flex flex-col items-center sm:items-start gap-2 pb-8 sm:pl-2">
+        <h1 className="text-2xl font-bold">{user.displayName}</h1>
+        <p className="text-muted-foreground">@{user.username}</p>
+
+        {user.city && (
+          <p className="flex items-center gap-1 text-sm text-muted-foreground">
+            <MapPin className="h-4 w-4" />
+            {user.city}
+          </p>
+        )}
+
+        {user.bio && <p className="text-sm max-w-md">{user.bio}</p>}
+
+        <span className="inline-flex items-center gap-1.5 bg-primary/10 text-primary rounded-full px-3 py-1 text-sm font-medium mt-1">
+          <Camera className="h-4 w-4" />
+          {user.photoCount} photos
+        </span>
+      </div>
+
       {photosLoading ? (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-square rounded-lg" />
+            <Skeleton key={i} className="aspect-square rounded-xl" />
           ))}
         </div>
       ) : photos.length === 0 ? (
@@ -98,22 +103,28 @@ export function UserProfilePage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {photos.map((photo) => (
               <Link
                 key={photo.id}
                 to="/photos/$photoId"
                 params={{ photoId: photo.id }}
-                className="group relative aspect-square overflow-hidden rounded-lg bg-muted"
+                className="group relative aspect-square overflow-hidden rounded-xl bg-muted"
               >
                 <img
                   src={
                     photo.thumbnails.medium ?? photo.thumbnails.small ?? ''
                   }
                   alt={photo.caption ?? 'Photo'}
-                  className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   loading="lazy"
                 />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all duration-300 group-hover:bg-black/30">
+                  <span className="flex items-center gap-1.5 text-white text-sm font-medium opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                    <Heart className="h-4 w-4" />
+                    {photo.likeCount}
+                  </span>
+                </div>
               </Link>
             ))}
           </div>
@@ -132,14 +143,17 @@ export function UserProfilePage() {
 function ProfileSkeleton() {
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="flex flex-col items-center gap-4 pb-8 sm:flex-row sm:items-start sm:gap-8">
-        <Skeleton className="h-24 w-24 rounded-full sm:h-32 sm:w-32" />
-        <div className="space-y-3">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-16 w-64" />
+      <div className="relative mb-16">
+        <Skeleton className="h-32 rounded-2xl" />
+        <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 sm:left-8 sm:translate-x-0">
+          <Skeleton className="h-28 w-28 rounded-full" />
         </div>
+      </div>
+      <div className="space-y-3 sm:pl-2">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-16 w-64" />
       </div>
     </div>
   );

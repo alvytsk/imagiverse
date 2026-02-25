@@ -1,6 +1,7 @@
 import { Link, useParams, useRouterState } from '@tanstack/react-router';
-import { AlertTriangle, Heart, Loader2, MessageCircle, Trash2, Upload } from 'lucide-react';
-import { useState } from 'react';
+import { AlertTriangle, Heart, Loader2, Maximize2, MessageCircle, SendHorizontal, Trash2, Upload, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -15,6 +16,7 @@ import {
   usePhoto,
   usePhotoComments,
 } from '@/hooks/use-photo';
+import { timeAgo } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
 
 export function PhotoDetailPage() {
@@ -26,6 +28,20 @@ export function PhotoDetailPage() {
   const { likeMutation, unlikeMutation, isAuthenticated } =
     useLikePhoto(photoId);
   const [liked, setLiked] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [lightboxOpen]);
 
   if (error) {
     return (
@@ -81,13 +97,16 @@ export function PhotoDetailPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="grid gap-6 md:grid-cols-[1fr_380px]">
-        <div className="overflow-hidden rounded-lg border bg-black relative">
+      <div className="grid gap-6 md:grid-cols-[1fr_380px] md:max-h-[85vh]">
+        <div
+          className={`overflow-hidden rounded-2xl bg-muted/20 dark:bg-black relative flex items-center justify-center md:min-h-0 ${!isProcessing && imageSrc ? 'cursor-zoom-in group' : ''}`}
+          onClick={() => !isProcessing && imageSrc && setLightboxOpen(true)}
+        >
           {imageSrc ? (
             <img
               src={imageSrc}
               alt={photo.caption ?? 'Photo'}
-              className={`w-full object-contain max-h-[80vh] ${isProcessing ? 'opacity-60 blur-[2px]' : ''}`}
+              className={`max-w-full object-contain max-h-[80vh] md:max-h-full ${isProcessing ? 'opacity-60 blur-[2px]' : ''}`}
             />
           ) : (
             <Skeleton className="aspect-[4/3] w-full" />
@@ -100,9 +119,14 @@ export function PhotoDetailPage() {
               </span>
             </div>
           )}
+          {!isProcessing && imageSrc && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none">
+              <Maximize2 className="h-10 w-10 text-white opacity-0 group-hover:opacity-60 transition-opacity drop-shadow-lg" />
+            </div>
+          )}
         </div>
 
-        <div className="flex flex-col">
+        <div className="flex flex-col md:min-h-0">
           <div className="flex items-center gap-3 pb-4">
             <Link to="/users/$userId" params={{ userId: photo.userId }}>
               <Avatar className="h-10 w-10">
@@ -118,7 +142,7 @@ export function PhotoDetailPage() {
                 {photo.userId}
               </Link>
               <p className="text-xs text-muted-foreground">
-                {new Date(photo.createdAt).toLocaleDateString()}
+                {timeAgo(photo.createdAt)}
               </p>
             </div>
           </div>
@@ -136,7 +160,7 @@ export function PhotoDetailPage() {
               className={liked ? 'text-red-500' : ''}
             >
               <Heart
-                className={`h-5 w-5 mr-1 ${liked ? 'fill-current' : ''}`}
+                className={`h-5 w-5 mr-1 transition-transform duration-200 ${liked ? 'fill-current scale-110' : ''}`}
               />
               {displayLikes}
             </Button>
@@ -151,6 +175,34 @@ export function PhotoDetailPage() {
           <CommentsSection photoId={photoId} />
         </div>
       </div>
+
+      {lightboxOpen && imageSrc && createPortal(
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center cursor-zoom-out"
+          onClick={() => setLightboxOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Full size image"
+        >
+          <button
+            className="absolute top-4 right-4 z-10 rounded-full bg-white/10 p-2.5 text-white/80 hover:bg-white/20 hover:text-white transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightboxOpen(false);
+            }}
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <img
+            src={imageSrc}
+            alt={photo.caption ?? 'Photo'}
+            className="max-h-[95vh] max-w-[95vw] object-contain select-none"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
@@ -174,8 +226,8 @@ function CommentsSection({ photoId }: { photoId: string }) {
   const comments = data?.pages.flatMap((p) => p.data) ?? [];
 
   return (
-    <div className="flex flex-col flex-1 pt-4">
-      <div className="flex-1 space-y-4 overflow-y-auto max-h-[400px] mb-4">
+    <div className="flex flex-col flex-1 pt-4 md:min-h-0">
+      <div className="flex-1 space-y-3 overflow-y-auto max-h-[400px] md:max-h-none min-h-0 mb-4">
         {isLoading && (
           <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -206,30 +258,32 @@ function CommentsSection({ photoId }: { photoId: string }) {
               </Avatar>
             </Link>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <Link
-                  to="/users/$userId"
-                  params={{ userId: comment.userId }}
-                  className="text-sm font-medium hover:underline"
-                >
-                  {comment.displayName}
-                </Link>
-                <span className="text-xs text-muted-foreground">
-                  {new Date(comment.createdAt).toLocaleDateString()}
-                </span>
-                {currentUserId === comment.userId && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => deleteComment.mutate(comment.id)}
-                    disabled={deleteComment.isPending}
+              <div className="bg-muted rounded-2xl px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <Link
+                    to="/users/$userId"
+                    params={{ userId: comment.userId }}
+                    className="text-sm font-medium hover:underline"
                   >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                )}
+                    {comment.displayName}
+                  </Link>
+                  <span className="text-xs text-muted-foreground">
+                    {timeAgo(comment.createdAt)}
+                  </span>
+                  {currentUserId === comment.userId && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity ml-auto"
+                      onClick={() => deleteComment.mutate(comment.id)}
+                      disabled={deleteComment.isPending}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+                <p className="text-sm break-words">{comment.body}</p>
               </div>
-              <p className="text-sm break-words">{comment.body}</p>
             </div>
           </div>
         ))}
@@ -249,12 +303,12 @@ function CommentsSection({ photoId }: { photoId: string }) {
       </div>
 
       {isAuthenticated ? (
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-end">
           <Textarea
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
             placeholder="Add a comment..."
-            className="min-h-[40px] resize-none"
+            className="min-h-[40px] resize-none rounded-2xl"
             rows={1}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -264,12 +318,13 @@ function CommentsSection({ photoId }: { photoId: string }) {
             }}
           />
           <Button
-            size="sm"
+            size="icon"
             onClick={handleSubmitComment}
             disabled={!commentText.trim() || addComment.isPending}
             isLoading={addComment.isPending}
+            className="shrink-0"
           >
-            Post
+            <SendHorizontal className="h-4 w-4" />
           </Button>
         </div>
       ) : (
@@ -288,7 +343,7 @@ function PhotoDetailSkeleton() {
   return (
     <div className="mx-auto max-w-5xl">
       <div className="grid gap-6 md:grid-cols-[1fr_380px]">
-        <Skeleton className="aspect-square rounded-lg" />
+        <Skeleton className="aspect-square rounded-2xl" />
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <Skeleton className="h-10 w-10 rounded-full" />

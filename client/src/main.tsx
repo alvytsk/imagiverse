@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 
 import './index.css';
 import { rehydrateAuth } from './stores/auth-store';
+import { initThemeListener } from './stores/theme-store';
 import { routeTree } from './routeTree.gen';
 
 const router = createRouter({ routeTree });
@@ -13,6 +14,8 @@ declare module '@tanstack/react-router' {
     router: typeof router;
   }
 }
+
+initThemeListener();
 
 // Rehydrate auth session before mounting React.
 // This must happen outside the React tree to avoid StrictMode
