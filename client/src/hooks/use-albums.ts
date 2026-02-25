@@ -3,6 +3,7 @@ import type {
   AlbumResponse,
   CreateAlbumInput,
   PhotoResponse,
+  UpdateAlbumInput,
 } from 'imagiverse-shared';
 import { toast } from 'sonner';
 
@@ -45,6 +46,27 @@ export function useCreateAlbum() {
         toast.error(err.message);
       } else {
         toast.error('Не удалось создать альбом');
+      }
+    },
+  });
+}
+
+export function useUpdateAlbum(albumId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: UpdateAlbumInput) =>
+      api.patch<AlbumResponse>(`/albums/${albumId}`, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['albums', albumId] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast.success('Альбом обновлён');
+    },
+    onError: (err) => {
+      if (err instanceof ApiClientError) {
+        toast.error(err.message);
+      } else {
+        toast.error('Не удалось обновить альбом');
       }
     },
   });

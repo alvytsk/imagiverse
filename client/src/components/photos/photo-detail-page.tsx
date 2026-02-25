@@ -1,10 +1,11 @@
 import { Link, useParams, useRouterState } from '@tanstack/react-router';
 import type { CommentResponse } from 'imagiverse-shared';
-import { AlertTriangle, ChevronDown, ChevronUp, Heart, Loader2, Maximize2, MessageCircle, Reply, SendHorizontal, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, FolderPlus, Heart, Loader2, Maximize2, MessageCircle, Reply, SendHorizontal, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 
+import { AddToAlbumDialog } from '@/components/albums/add-to-album-dialog';
 import { ReportDialog } from '@/components/photos/report-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ export function PhotoDetailPage() {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [liked, setLiked] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [addToAlbumOpen, setAddToAlbumOpen] = useState(false);
   const lightboxCloseRef = useRef<HTMLButtonElement>(null);
   const lightboxTriggerRef = useRef<HTMLElement | null>(null);
 
@@ -191,6 +193,17 @@ export function PhotoDetailPage() {
               <MessageCircle className="h-5 w-5" />
               {photo.commentCount}
             </span>
+            {isAuthenticated && currentUserId === photo.userId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setAddToAlbumOpen(true)}
+                aria-label="Add to album"
+              >
+                <FolderPlus className="h-5 w-5 mr-1" />
+                Album
+              </Button>
+            )}
             {isAuthenticated && photo.userId !== currentUserId && (
               <div className="ml-auto">
                 <ReportDialog photoId={photoId} />
@@ -203,6 +216,15 @@ export function PhotoDetailPage() {
           <CommentsSection photoId={photoId} />
         </div>
       </div>
+
+      {isAuthenticated && currentUserId === photo?.userId && (
+        <AddToAlbumDialog
+          photoId={photoId}
+          userId={currentUserId}
+          open={addToAlbumOpen}
+          onOpenChange={setAddToAlbumOpen}
+        />
+      )}
 
       {lightboxOpen && imageSrc && createPortal(
         <div

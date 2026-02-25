@@ -17,6 +17,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UsersUserIdRouteImport } from './routes/users.$userId'
 import { Route as PhotosPhotoIdRouteImport } from './routes/photos.$photoId'
+import { Route as AlbumsAlbumIdRouteImport } from './routes/albums.$albumId'
 
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
@@ -58,6 +59,11 @@ const PhotosPhotoIdRoute = PhotosPhotoIdRouteImport.update({
   path: '/photos/$photoId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AlbumsAlbumIdRoute = AlbumsAlbumIdRouteImport.update({
+  id: '/albums/$albumId',
+  path: '/albums/$albumId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/search': typeof SearchRoute
   '/upload': typeof UploadRoute
+  '/albums/$albumId': typeof AlbumsAlbumIdRoute
   '/photos/$photoId': typeof PhotosPhotoIdRoute
   '/users/$userId': typeof UsersUserIdRoute
 }
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/search': typeof SearchRoute
   '/upload': typeof UploadRoute
+  '/albums/$albumId': typeof AlbumsAlbumIdRoute
   '/photos/$photoId': typeof PhotosPhotoIdRoute
   '/users/$userId': typeof UsersUserIdRoute
 }
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/search': typeof SearchRoute
   '/upload': typeof UploadRoute
+  '/albums/$albumId': typeof AlbumsAlbumIdRoute
   '/photos/$photoId': typeof PhotosPhotoIdRoute
   '/users/$userId': typeof UsersUserIdRoute
 }
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/search'
     | '/upload'
+    | '/albums/$albumId'
     | '/photos/$photoId'
     | '/users/$userId'
   fileRoutesByTo: FileRoutesByTo
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/search'
     | '/upload'
+    | '/albums/$albumId'
     | '/photos/$photoId'
     | '/users/$userId'
   id:
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/search'
     | '/upload'
+    | '/albums/$albumId'
     | '/photos/$photoId'
     | '/users/$userId'
   fileRoutesById: FileRoutesById
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   SearchRoute: typeof SearchRoute
   UploadRoute: typeof UploadRoute
+  AlbumsAlbumIdRoute: typeof AlbumsAlbumIdRoute
   PhotosPhotoIdRoute: typeof PhotosPhotoIdRoute
   UsersUserIdRoute: typeof UsersUserIdRoute
 }
@@ -192,6 +205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PhotosPhotoIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/albums/$albumId': {
+      id: '/albums/$albumId'
+      path: '/albums/$albumId'
+      fullPath: '/albums/$albumId'
+      preLoaderRoute: typeof AlbumsAlbumIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -202,6 +222,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   SearchRoute: SearchRoute,
   UploadRoute: UploadRoute,
+  AlbumsAlbumIdRoute: AlbumsAlbumIdRoute,
   PhotosPhotoIdRoute: PhotosPhotoIdRoute,
   UsersUserIdRoute: UsersUserIdRoute,
 }
