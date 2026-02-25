@@ -1023,6 +1023,7 @@ on manual trigger / tag:
 | V1.4.4 Infinite scroll improvements (virtualization for long feeds) | Smooth scrolling with 1000+ photos |
 | V1.4.5 Dark mode | Toggle in user menu; persists preference |
 | V1.4.6 Accessibility audit (keyboard nav, ARIA labels, color contrast) | Passes axe-core automated checks |
+| V1.4.7 Кнопка «Пожаловаться» на фото | На странице фото (и опционально в карточке в ленте) — вызов POST /photos/:id/report с вводом причины; тост об успехе/ошибке |
 
 #### Epic V1.5: Performance & Load Testing
 
