@@ -69,6 +69,7 @@ export async function detectSpam(userId: string, body: string): Promise<boolean>
   if (urlMatches && urlMatches.length > SPAM_URL_THRESHOLD) return true;
 
   const windowStart = new Date(Date.now() - DUPLICATE_WINDOW_HOURS * 60 * 60 * 1000);
+  const windowStartIso = windowStart.toISOString();
   const [result] = await db
     .select({ value: count() })
     .from(comments)
@@ -76,7 +77,7 @@ export async function detectSpam(userId: string, body: string): Promise<boolean>
       and(
         eq(comments.userId, userId),
         eq(comments.body, body),
-        sql`${comments.createdAt} >= ${windowStart}`
+        sql`${comments.createdAt} >= ${windowStartIso}::timestamptz`
       )
     );
 
