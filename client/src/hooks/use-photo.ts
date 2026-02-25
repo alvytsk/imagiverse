@@ -19,7 +19,7 @@ export function usePhoto(photoId: string) {
   return useQuery({
     queryKey: ['photos', photoId],
     queryFn: () =>
-      api.get<PhotoResponse>(`/photos/${photoId}`, { auth: false }),
+      api.get<PhotoResponse>(`/photos/${photoId}`),
     refetchInterval: (query) => {
       if (query.state.data?.status === 'processing') return 2000;
       return false;
@@ -165,6 +165,30 @@ export function useReportPhoto(photoId: string) {
         toast.error(err.message);
       } else {
         toast.error('Failed to submit report');
+      }
+    },
+  });
+}
+
+export function useDeletePhoto(photoId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.delete(`/photos/${photoId}`),
+    onSuccess: async () => {
+      queryClient.removeQueries({ queryKey: ['photos', photoId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['feed'] }),
+        queryClient.invalidateQueries({ queryKey: ['users'], refetchType: 'all' }),
+        queryClient.invalidateQueries({ queryKey: ['photos'] }),
+      ]);
+      toast.success('Photo deleted');
+    },
+    onError: (err) => {
+      if (err instanceof ApiClientError) {
+        toast.error(err.message);
+      } else {
+        toast.error('Failed to delete photo');
       }
     },
   });

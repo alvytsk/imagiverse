@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, PHOTO_VISIBILITY, UpdateCaptionSchema } from 'imagiverse-shared';
 import type { PhotoVisibility } from 'imagiverse-shared';
 import sharp from 'sharp';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, tryParseAuth } from '../../middleware/auth';
 import type { PhotoIdParams } from './photos.schema';
 import {
   buildPhotoResponse,
@@ -135,14 +135,9 @@ export async function photoRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      // Enforce privacy: private photos visible only to author
       if (photo.visibility === 'private') {
-        let requestUserId: string | undefined;
-        try {
-          await authenticate(request, reply);
-          requestUserId = request.user?.id;
-        } catch { /* not authenticated */ }
-        if (requestUserId !== photo.userId) {
+        const authUser = tryParseAuth(request);
+        if (authUser?.id !== photo.userId) {
           return reply.status(404).send({
             error: { code: 'NOT_FOUND', message: 'Photo not found' },
           });

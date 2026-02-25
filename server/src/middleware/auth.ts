@@ -42,3 +42,21 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     });
   }
 }
+
+/**
+ * Tries to extract the authenticated user from the request without sending
+ * any response on failure. Useful when auth is optional (e.g. private photos
+ * visible only to their author, but public photos visible to everyone).
+ */
+export function tryParseAuth(request: FastifyRequest): AuthUser | undefined {
+  const authHeader = request.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return undefined;
+
+  try {
+    const payload = jwt.verify(authHeader.slice(7), env.JWT_SECRET) as jwt.JwtPayload & AuthUser;
+    request.user = { id: payload.id, role: payload.role };
+    return request.user;
+  } catch {
+    return undefined;
+  }
+}

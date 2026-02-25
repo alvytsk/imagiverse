@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { UpdateProfileSchema } from 'imagiverse-shared';
-import { authenticate } from '../../middleware/auth';
+import { z } from 'zod';
+import { authenticate, tryParseAuth } from '../../middleware/auth';
 import type { PaginationQuery, SearchQuery, UserIdParams } from './users.schema';
 import {
   getMyProfile,
@@ -87,10 +88,25 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
     },
   });
 
+  const uuidParam = z.string().min(1, 'User ID is required').uuid('Invalid user ID');
+
   // ── GET /users/:id ────────────────────────────────────────────────────────
   fastify.get<{ Params: UserIdParams }>('/users/:id', {
     handler: async (request, reply) => {
-      const { id } = request.params;
+      const parsed = uuidParam.safeParse(request.params.id);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: parsed.error.errors[0]?.message ?? 'Invalid user ID',
+            details: parsed.error.issues.map((i) => ({
+              field: 'id',
+              message: i.message,
+            })),
+          },
+        });
+      }
+      const id = parsed.data;
       const profile = await getPublicProfile(id);
 
       if (!profile) {
@@ -106,7 +122,20 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /users/:id/photos ─────────────────────────────────────────────────
   fastify.get<{ Params: UserIdParams; Querystring: PaginationQuery }>('/users/:id/photos', {
     handler: async (request, reply) => {
-      const { id } = request.params;
+      const parsed = uuidParam.safeParse(request.params.id);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: parsed.error.errors[0]?.message ?? 'Invalid user ID',
+            details: parsed.error.issues.map((i) => ({
+              field: 'id',
+              message: i.message,
+            })),
+          },
+        });
+      }
+      const id = parsed.data;
       const { cursor, limit } = request.query;
 
       // Verify user exists
@@ -118,7 +147,8 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined;
-      const result = await getUserPhotos(id, cursor, parsedLimit);
+      const authUser = tryParseAuth(request);
+      const result = await getUserPhotos(id, cursor, parsedLimit, authUser?.id);
       return reply.send(result);
     },
   });

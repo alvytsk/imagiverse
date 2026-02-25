@@ -1,6 +1,6 @@
-import { Link, useParams, useRouterState } from '@tanstack/react-router';
+import { Link, useParams, useRouter, useRouterState } from '@tanstack/react-router';
 import type { CommentResponse } from 'imagiverse-shared';
-import { AlertTriangle, ChevronDown, ChevronUp, FolderPlus, Heart, Loader2, Maximize2, MessageCircle, Reply, SendHorizontal, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, FolderPlus, Heart, Loader2, Lock, Maximize2, MessageCircle, Reply, SendHorizontal, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -9,6 +9,14 @@ import { AddToAlbumDialog } from '@/components/albums/add-to-album-dialog';
 import { ReportDialog } from '@/components/photos/report-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,6 +24,7 @@ import {
   useAddComment,
   useCommentReplies,
   useDeleteComment,
+  useDeletePhoto,
   useLikePhoto,
   usePhoto,
   usePhotoComments,
@@ -37,8 +46,11 @@ export function PhotoDetailPage() {
   const [liked, setLiked] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [addToAlbumOpen, setAddToAlbumOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const lightboxCloseRef = useRef<HTMLButtonElement>(null);
   const lightboxTriggerRef = useRef<HTMLElement | null>(null);
+  const deletePhoto = useDeletePhoto(photoId);
+  const router = useRouter();
 
   useEffect(() => {
     if (!lightboxOpen) return;
@@ -128,6 +140,12 @@ export function PhotoDetailPage() {
           ) : (
             <Skeleton className="aspect-[4/3] w-full" />
           )}
+          {photo.visibility === 'private' && (
+            <span className="absolute top-3 left-3 z-10 flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
+              <Lock className="h-3.5 w-3.5" />
+              Private
+            </span>
+          )}
           {isProcessing && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-white drop-shadow-lg" />
@@ -194,15 +212,27 @@ export function PhotoDetailPage() {
               {photo.commentCount}
             </span>
             {isAuthenticated && currentUserId === photo.userId && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setAddToAlbumOpen(true)}
-                aria-label="Add to album"
-              >
-                <FolderPlus className="h-5 w-5 mr-1" />
-                Album
-              </Button>
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAddToAlbumOpen(true)}
+                  aria-label="Add to album"
+                >
+                  <FolderPlus className="h-5 w-5 mr-1" />
+                  Album
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive ml-auto"
+                  onClick={() => setDeleteConfirmOpen(true)}
+                  aria-label="Delete photo"
+                >
+                  <Trash2 className="h-5 w-5 mr-1" />
+                  Delete
+                </Button>
+              </>
             )}
             {isAuthenticated && photo.userId !== currentUserId && (
               <div className="ml-auto">
@@ -218,12 +248,44 @@ export function PhotoDetailPage() {
       </div>
 
       {isAuthenticated && currentUserId === photo?.userId && (
-        <AddToAlbumDialog
-          photoId={photoId}
-          userId={currentUserId}
-          open={addToAlbumOpen}
-          onOpenChange={setAddToAlbumOpen}
-        />
+        <>
+          <AddToAlbumDialog
+            photoId={photoId}
+            userId={currentUserId}
+            open={addToAlbumOpen}
+            onOpenChange={setAddToAlbumOpen}
+          />
+          <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete photo</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete this photo? This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={async () => {
+                    await deletePhoto.mutateAsync();
+                    setDeleteConfirmOpen(false);
+                    if (window.history.length > 1) {
+                      router.history.back();
+                    } else {
+                      router.navigate({ to: '/' });
+                    }
+                  }}
+                  disabled={deletePhoto.isPending}
+                >
+                  {deletePhoto.isPending ? 'Deleting...' : 'Delete'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
       )}
 
       {lightboxOpen && imageSrc && createPortal(
@@ -314,7 +376,6 @@ function CommentsSection({ photoId }: { photoId: string }) {
           <CommentItem
             key={comment.id}
             comment={comment}
-            photoId={photoId}
             currentUserId={currentUserId}
             isAuthenticated={isAuthenticated}
             onDelete={(id) => deleteComment.mutate(id)}
@@ -391,7 +452,6 @@ function CommentsSection({ photoId }: { photoId: string }) {
 
 function CommentItem({
   comment,
-  photoId,
   currentUserId,
   isAuthenticated,
   onDelete,
@@ -399,7 +459,6 @@ function CommentItem({
   deleteIsPending,
 }: {
   comment: CommentResponse;
-  photoId: string;
   currentUserId?: string;
   isAuthenticated: boolean;
   onDelete: (id: string) => void;

@@ -173,7 +173,9 @@ export async function getPublicProfile(userId: string): Promise<PublicUser | nul
   const [countRow] = await db
     .select({ count: sql<number>`COUNT(*)::int` })
     .from(photos)
-    .where(and(eq(photos.userId, userId), eq(photos.status, 'ready')));
+    .where(
+      and(eq(photos.userId, userId), eq(photos.status, 'ready'), eq(photos.visibility, 'public'))
+    );
 
   return {
     id: user.id,
@@ -213,7 +215,8 @@ export async function updateProfile(
 export async function getUserPhotos(
   userId: string,
   cursor?: string,
-  limit?: number
+  limit?: number,
+  requesterId?: string
 ): Promise<PaginatedResponse<PhotoResponse>> {
   const pageLimit = Math.min(Math.max(limit ?? DEFAULT_PAGE_LIMIT, 1), MAX_PAGE_LIMIT);
 
@@ -230,10 +233,11 @@ export async function getUserPhotos(
     }
   }
 
+  const isOwner = requesterId === userId;
   const baseCondition = and(
     eq(photos.userId, userId),
     eq(photos.status, 'ready'),
-    eq(photos.visibility, 'public')
+    isOwner ? undefined : eq(photos.visibility, 'public')
   );
   const whereConditions = cursorCondition ? and(baseCondition, cursorCondition) : baseCondition;
 

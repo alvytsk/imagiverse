@@ -1,5 +1,5 @@
 import { Link, useParams } from '@tanstack/react-router';
-import { Camera, Heart, ImageIcon, MapPin } from 'lucide-react';
+import { Camera, Heart, ImageIcon, Lock, MapPin } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { AlbumGrid } from '@/components/albums/album-grid';
@@ -28,7 +28,7 @@ export function UserProfilePage() {
     hasNextPage,
     isFetchingNextPage,
     isLoading: photosLoading,
-  } = useUserPhotos(userId);
+  } = useUserPhotos(userId, isOwner);
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useCallback(
@@ -149,6 +149,12 @@ export function UserProfilePage() {
                       alt={photo.caption ?? 'Photo'}
                       className="h-full w-full transition-transform duration-300 group-hover:scale-105"
                     />
+                    {photo.visibility === 'private' && (
+                      <span className="absolute top-2 left-2 z-10 flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
+                        <Lock className="h-3 w-3" />
+                        Private
+                      </span>
+                    )}
                     <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all duration-300 group-hover:bg-black/30">
                       <span className="flex items-center gap-1.5 text-white text-sm font-medium opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                         <Heart className="h-4 w-4" />

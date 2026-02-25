@@ -28,7 +28,7 @@ import { usersRoutes } from './users.routes';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function generateAuthToken(userId = 'user-uuid-1') {
+function generateAuthToken(userId = TEST_USER_ID) {
   return jwt.sign({ id: userId, role: 'user' }, process.env.JWT_SECRET!, { expiresIn: '15m' });
 }
 
@@ -39,8 +39,10 @@ async function buildApp() {
   return app;
 }
 
+const TEST_USER_ID = '550e8400-e29b-41d4-a716-446655440001';
+
 const TEST_USER = {
-  id: 'user-uuid-1',
+  id: TEST_USER_ID,
   username: 'alexey',
   displayName: 'Alexey Doe',
   city: 'Berlin',
@@ -58,7 +60,7 @@ const TEST_ME_PROFILE = {
 
 const TEST_PHOTO = {
   id: 'photo-uuid-1',
-  userId: 'user-uuid-1',
+  userId: TEST_USER_ID,
   caption: 'Sunset',
   status: 'ready',
   thumbnails: { small: 'https://s3/small', medium: 'https://s3/medium', large: 'https://s3/large' },
@@ -107,7 +109,7 @@ describe('GET /api/users/me', () => {
 
     expect(response.statusCode).toBe(200);
     const body = response.json();
-    expect(body.id).toBe('user-uuid-1');
+    expect(body.id).toBe(TEST_USER_ID);
     expect(body.email).toBe('alexey@example.com');
     expect(body.username).toBe('alexey');
     expect(body.role).toBe('user');
@@ -233,7 +235,7 @@ describe('PATCH /api/users/me', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(mockService.updateProfile).toHaveBeenCalledWith('user-uuid-1', { city: null });
+    expect(mockService.updateProfile).toHaveBeenCalledWith(TEST_USER_ID, { city: null });
   });
 
   it('allows setting bio to null', async () => {
@@ -245,7 +247,7 @@ describe('PATCH /api/users/me', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(mockService.updateProfile).toHaveBeenCalledWith('user-uuid-1', { bio: null });
+    expect(mockService.updateProfile).toHaveBeenCalledWith(TEST_USER_ID, { bio: null });
   });
 
   it('returns 404 when user not found', async () => {
@@ -270,7 +272,7 @@ describe('PATCH /api/users/me', () => {
       payload: { displayName: 'New Name', city: 'Munich', bio: 'Hello world' },
     });
 
-    expect(mockService.updateProfile).toHaveBeenCalledWith('user-uuid-1', {
+    expect(mockService.updateProfile).toHaveBeenCalledWith(TEST_USER_ID, {
       displayName: 'New Name',
       city: 'Munich',
       bio: 'Hello world',
@@ -373,12 +375,12 @@ describe('GET /api/users/:id', () => {
   it('returns 200 with public profile', async () => {
     const response = await app.inject({
       method: 'GET',
-      url: '/api/users/user-uuid-1',
+      url: `/api/users/${TEST_USER_ID}`,
     });
 
     expect(response.statusCode).toBe(200);
     const body = response.json();
-    expect(body.id).toBe('user-uuid-1');
+    expect(body.id).toBe(TEST_USER_ID);
     expect(body.username).toBe('alexey');
     expect(body.displayName).toBe('Alexey Doe');
     expect(body.photoCount).toBe(5);
@@ -391,7 +393,7 @@ describe('GET /api/users/:id', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: '/api/users/nonexistent',
+      url: '/api/users/00000000-0000-0000-0000-000000000000',
     });
 
     expect(response.statusCode).toBe(404);
@@ -401,19 +403,42 @@ describe('GET /api/users/:id', () => {
   it('does not require authentication', async () => {
     const response = await app.inject({
       method: 'GET',
-      url: '/api/users/user-uuid-1',
+      url: `/api/users/${TEST_USER_ID}`,
     });
 
     expect(response.statusCode).toBe(200);
   });
 
   it('passes user id to service', async () => {
+    const userId = '11111111-1111-1111-1111-111111111111';
     await app.inject({
       method: 'GET',
-      url: '/api/users/some-user-id',
+      url: `/api/users/${userId}`,
     });
 
-    expect(mockService.getPublicProfile).toHaveBeenCalledWith('some-user-id');
+    expect(mockService.getPublicProfile).toHaveBeenCalledWith(userId);
+  });
+
+  it('returns 400 for empty user id', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/users/',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('VALIDATION_ERROR');
+    expect(mockService.getPublicProfile).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for invalid UUID', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/users/not-a-uuid',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('VALIDATION_ERROR');
+    expect(mockService.getPublicProfile).not.toHaveBeenCalled();
   });
 });
 
@@ -435,7 +460,7 @@ describe('GET /api/users/:id/photos', () => {
   it('returns 200 with paginated photos', async () => {
     const response = await app.inject({
       method: 'GET',
-      url: '/api/users/user-uuid-1/photos',
+      url: `/api/users/${TEST_USER_ID}/photos`,
     });
 
     expect(response.statusCode).toBe(200);
@@ -451,7 +476,7 @@ describe('GET /api/users/:id/photos', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: '/api/users/nonexistent/photos',
+      url: '/api/users/00000000-0000-0000-0000-000000000000/photos',
     });
 
     expect(response.statusCode).toBe(404);
@@ -461,7 +486,7 @@ describe('GET /api/users/:id/photos', () => {
   it('does not require authentication', async () => {
     const response = await app.inject({
       method: 'GET',
-      url: '/api/users/user-uuid-1/photos',
+      url: `/api/users/${TEST_USER_ID}/photos`,
     });
 
     expect(response.statusCode).toBe(200);
@@ -470,19 +495,24 @@ describe('GET /api/users/:id/photos', () => {
   it('passes cursor and limit to service', async () => {
     await app.inject({
       method: 'GET',
-      url: '/api/users/user-uuid-1/photos?cursor=abc123&limit=10',
+      url: `/api/users/${TEST_USER_ID}/photos?cursor=abc123&limit=10`,
     });
 
-    expect(mockService.getUserPhotos).toHaveBeenCalledWith('user-uuid-1', 'abc123', 10);
+    expect(mockService.getUserPhotos).toHaveBeenCalledWith(TEST_USER_ID, 'abc123', 10, undefined);
   });
 
   it('passes undefined cursor and limit when not provided', async () => {
     await app.inject({
       method: 'GET',
-      url: '/api/users/user-uuid-1/photos',
+      url: `/api/users/${TEST_USER_ID}/photos`,
     });
 
-    expect(mockService.getUserPhotos).toHaveBeenCalledWith('user-uuid-1', undefined, undefined);
+    expect(mockService.getUserPhotos).toHaveBeenCalledWith(
+      TEST_USER_ID,
+      undefined,
+      undefined,
+      undefined
+    );
   });
 
   it('returns empty page when user has no photos', async () => {
@@ -493,12 +523,34 @@ describe('GET /api/users/:id/photos', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: '/api/users/user-uuid-1/photos',
+      url: `/api/users/${TEST_USER_ID}/photos`,
     });
 
     expect(response.statusCode).toBe(200);
     const body = response.json();
     expect(body.data).toHaveLength(0);
     expect(body.pagination.hasMore).toBe(false);
+  });
+
+  it('returns 400 for empty user id', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/users//photos',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('VALIDATION_ERROR');
+    expect(mockService.getPublicProfile).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for invalid UUID', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/users/not-a-uuid/photos',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('VALIDATION_ERROR');
+    expect(mockService.getPublicProfile).not.toHaveBeenCalled();
   });
 });

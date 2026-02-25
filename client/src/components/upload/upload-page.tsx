@@ -107,7 +107,7 @@ export function UploadPage() {
       navigate({
         to: '/photos/$photoId',
         params: { photoId: data.id },
-        state: { localPreview: preview },
+        state: { localPreview: preview } as Record<string, unknown>,
       });
     } catch (err) {
       if (err instanceof ApiClientError) {

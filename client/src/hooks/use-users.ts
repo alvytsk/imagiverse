@@ -12,18 +12,19 @@ export function useUser(userId: string) {
     queryKey: ['users', userId],
     queryFn: () =>
       api.get<PublicUser>(`/users/${userId}`, { auth: false }),
+    enabled: !!userId,
   });
 }
 
-export function useUserPhotos(userId: string) {
+export function useUserPhotos(userId: string, isOwner = false) {
   return useInfiniteQuery({
-    queryKey: ['users', userId, 'photos'],
+    queryKey: ['users', userId, 'photos', isOwner],
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '20' });
       if (pageParam) params.set('cursor', pageParam);
       return api.get<PaginatedResponse<PhotoResponse>>(
         `/users/${userId}/photos?${params}`,
-        { auth: false },
+        { auth: isOwner },
       );
     },
     getNextPageParam: (lastPage) =>
