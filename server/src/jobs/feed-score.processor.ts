@@ -1,6 +1,7 @@
 import { Worker } from 'bullmq';
 import { sql } from 'drizzle-orm';
 import { db } from '../db/index';
+import { logger } from '../lib/logger';
 import { redis } from '../plugins/redis';
 import { bullConnection, FEED_SCORE_QUEUE_NAME } from './queue';
 
@@ -20,6 +21,7 @@ const FRESHNESS_BOOST = 1;
  * UPSERTs into feed_scores so new photos are included automatically.
  */
 export async function recalculateAllFeedScores(): Promise<void> {
+  logger.debug('feed score recalculation started');
   await db.execute(sql`
     INSERT INTO feed_scores (photo_id, score, updated_at)
     SELECT
@@ -40,6 +42,7 @@ export async function recalculateAllFeedScores(): Promise<void> {
 
   // Invalidate cached feed pages
   await invalidateFeedCache();
+  logger.debug('feed score recalculation completed');
 }
 
 /** Removes all cached feed pages from Redis. */
@@ -66,7 +69,7 @@ export function createFeedScoreWorker(): Worker {
   );
 
   worker.on('failed', (_job, err) => {
-    console.error('Feed score recalc failed:', err.message);
+    logger.error({ err: err.message }, 'feed score recalc job failed');
   });
 
   return worker;

@@ -53,12 +53,14 @@ export async function uploadPhoto({
   mimeType,
   sizeBytes,
   caption,
+  correlationId,
 }: {
   userId: string;
   fileBuffer: Buffer;
   mimeType: string;
   sizeBytes: number;
   caption?: string | null;
+  correlationId?: string;
 }) {
   const photoId = crypto.randomUUID();
   const ext = mimeToExtension(mimeType);
@@ -83,7 +85,7 @@ export async function uploadPhoto({
     .returning();
 
   // Enqueue thumbnail generation job
-  const jobData: ThumbnailJobData = { photoId, originalKey, userId };
+  const jobData: ThumbnailJobData = { photoId, originalKey, userId, correlationId };
   await thumbnailQueue.add('generate', jobData, {
     jobId: `thumb-${photoId}`,
   });

@@ -31,7 +31,7 @@ services:
       NODE_ENV: development
       DEBUG: "imagiverse:*"
 
-      # Database
+      # Database — direct connection (no PgBouncer in dev)
       DATABASE_URL: "postgresql://imagiverse_user:imagiverse_password@postgres:5432/imagiverse"
 
       # Redis
@@ -94,7 +94,7 @@ services:
       NODE_ENV: development
       DEBUG: "imagiverse:*"
 
-      # Database
+      # Database — direct connection (no PgBouncer in dev)
       DATABASE_URL: "postgresql://imagiverse_user:imagiverse_password@postgres:5432/imagiverse"
 
       # Redis

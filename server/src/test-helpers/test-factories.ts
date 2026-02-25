@@ -8,7 +8,8 @@ import { faker } from '@faker-js/faker';
 import bcrypt from 'bcryptjs';
 import { eq, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
-import { comments, feedScores, likes, photos, users } from '../db/schema/index';
+import type { NotificationPayload, NotificationType } from 'imagiverse-shared';
+import { comments, feedScores, likes, notifications, photos, users } from '../db/schema/index';
 import { calculateFeedScore } from '../modules/feed/feed.formula';
 import type { IntegrationContext } from './integration-setup';
 
@@ -158,6 +159,52 @@ export async function createTestFeedScore(
       target: feedScores.photoId,
       set: { score, updatedAt: new Date() },
     });
+}
+
+export interface TestNotification {
+  id: string;
+  userId: string;
+  type: string;
+  payload: NotificationPayload;
+  read: boolean;
+}
+
+export async function createTestNotification(
+  db: IntegrationContext['db'],
+  userId: string,
+  overrides: Partial<{
+    type: NotificationType;
+    payload: NotificationPayload;
+    read: boolean;
+  }> = {}
+): Promise<TestNotification> {
+  const payload: NotificationPayload = overrides.payload ?? {
+    actorId: crypto.randomUUID(),
+    actorUsername: faker.internet.username().toLowerCase(),
+    actorDisplayName: faker.person.fullName(),
+    photoId: crypto.randomUUID(),
+  };
+
+  const [notification] = await db
+    .insert(notifications)
+    .values({
+      userId,
+      type: overrides.type ?? 'like',
+      payload,
+      read: overrides.read ?? false,
+    })
+    .returning({
+      id: notifications.id,
+      userId: notifications.userId,
+      type: notifications.type,
+      payload: notifications.payload,
+      read: notifications.read,
+    });
+
+  return {
+    ...notification,
+    payload: notification.payload as NotificationPayload,
+  };
 }
 
 /**

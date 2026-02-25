@@ -3,6 +3,7 @@ import type { CommentResponse, PaginatedResponse } from 'imagiverse-shared';
 import sanitizeHtml from 'sanitize-html';
 import { db } from '../../db/index';
 import { comments, photos, users } from '../../db/schema/index';
+import { createNotification } from '../notifications/notifications.service';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -79,7 +80,7 @@ export async function createComment(
     .where(eq(users.id, userId))
     .limit(1);
 
-  return {
+  const response: CommentResponse = {
     id: comment.id,
     photoId: comment.photoId,
     userId: comment.userId,
@@ -89,6 +90,34 @@ export async function createComment(
     createdAt: comment.createdAt.toISOString(),
     updatedAt: comment.updatedAt.toISOString(),
   };
+
+  // Fire-and-forget notification to photo owner
+  createCommentNotification(userId, photoId, comment.id, author).catch(() => {});
+
+  return response;
+}
+
+async function createCommentNotification(
+  actorId: string,
+  photoId: string,
+  commentId: string,
+  actor: { username: string; displayName: string }
+): Promise<void> {
+  const [photo] = await db
+    .select({ userId: photos.userId })
+    .from(photos)
+    .where(eq(photos.id, photoId))
+    .limit(1);
+
+  if (!photo) return;
+
+  await createNotification(photo.userId, 'comment', {
+    actorId,
+    actorUsername: actor.username,
+    actorDisplayName: actor.displayName,
+    photoId,
+    commentId,
+  });
 }
 
 export async function listComments(

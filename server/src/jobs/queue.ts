@@ -32,6 +32,8 @@ export interface ThumbnailJobData {
   photoId: string;
   originalKey: string;
   userId: string;
+  /** Request ID from the originating HTTP request — propagated for log correlation. */
+  correlationId?: string;
 }
 
 export const thumbnailQueue = new Queue<ThumbnailJobData>(THUMBNAIL_QUEUE_NAME, {

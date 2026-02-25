@@ -980,12 +980,14 @@ on manual trigger / tag:
 
 #### Epic V1.1: Production Hardening
 
+**Status: ✓ COMPLETE**
+
 | Task | DoD |
 |---|---|
-| V1.1.1 PgBouncer connection pooling | API uses pooled connections; no connection exhaustion under load |
-| V1.1.2 Health checks (liveness + readiness) for API and Worker | `/api/health/live`, `/api/health/ready`; ready checks Postgres + Redis connectivity |
-| V1.1.3 Graceful shutdown (drain connections, finish current jobs) | No dropped requests on deploy |
-| V1.1.4 Request ID correlation in logs | Every log line has `requestId`; traceable across services |
+| V1.1.1 PgBouncer connection pooling | ✓ `bitnami/pgbouncer:1.24.1` added to Docker Compose (transaction mode, pool_size=20, max_client_conn=100). API and Worker connect via `DATABASE_POOL_URL` with `prepare: false`; migrations bypass PgBouncer via `DATABASE_URL` (direct Postgres) to preserve advisory-lock semantics. |
+| V1.1.2 Health checks (liveness + readiness) for API and Worker | ✓ `/api/health/live`, `/api/health/ready`; ready checks Postgres + Redis connectivity. Worker exposes `/health` on port 3001. |
+| V1.1.3 Graceful shutdown (drain connections, finish current jobs) | ✓ SIGTERM/SIGINT handlers in server.ts and worker.ts; BullMQ workers drained before exit. |
+| V1.1.4 Request ID correlation in logs | ✓ `genReqId` UUID per request (Fastify auto-includes `reqId`). `correlationId` propagated from upload request → `ThumbnailJobData` → thumbnail processor logs. Shared `server/src/lib/logger.ts` (pino) used by all worker processors; replaced all `console.error` with structured log calls including `{ jobId, photoId, correlationId }`. |
 
 #### Epic V1.2: Admin & Moderation
 
@@ -998,6 +1000,8 @@ on manual trigger / tag:
 | V1.2.5 Basic spam detection: flag comments with >3 URLs, duplicate text across comments | Auto-flagged; admin notified |
 
 #### Epic V1.3: Notifications (In-App)
+
+**Status: ✓ COMPLETE**
 
 | Task | DoD |
 |---|---|
@@ -1088,6 +1092,7 @@ on manual trigger / tag:
 | V2.2.3 Notification service consumes events | Decoupled from API; notifications created asynchronously |
 | V2.2.4 ES sync consumes user-update events | ES stays in sync without dual-write in API code |
 | V2.2.5 Analytics event consumer (for future dashboards) | Events stored for analysis |
+| V2.2.6 WebSocket server for real-time notifications | Clients subscribe to personal notification channel; notifications delivered via WebSocket (fallback to polling for unsupported clients) |
 
 #### Epic V2.3: Advanced Feed
 

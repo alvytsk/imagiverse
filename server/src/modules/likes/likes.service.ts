@@ -1,8 +1,9 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../../db/index';
-import { feedScores, likes, photos } from '../../db/schema/index';
+import { feedScores, likes, photos, users } from '../../db/schema/index';
 import { invalidateFeedCache } from '../../jobs/feed-score.processor';
 import { calculateFeedScore } from '../feed/feed.formula';
+import { createNotification } from '../notifications/notifications.service';
 
 export async function getReadyPhoto(photoId: string) {
   const [photo] = await db
@@ -37,6 +38,9 @@ export async function likePhoto(
 
   // Inline feed score recalc
   await recalcPhotoScore(photoId);
+
+  // Fire-and-forget notification
+  createLikeNotification(userId, photoId).catch(() => {});
 
   return { created: true, duplicate: false };
 }
@@ -80,6 +84,31 @@ async function recalcPhotoScore(photoId: string): Promise<void> {
     });
 
   await invalidateFeedCache();
+}
+
+async function createLikeNotification(actorId: string, photoId: string): Promise<void> {
+  const [photo] = await db
+    .select({ userId: photos.userId })
+    .from(photos)
+    .where(eq(photos.id, photoId))
+    .limit(1);
+
+  if (!photo) return;
+
+  const [actor] = await db
+    .select({ username: users.username, displayName: users.displayName })
+    .from(users)
+    .where(eq(users.id, actorId))
+    .limit(1);
+
+  if (!actor) return;
+
+  await createNotification(photo.userId, 'like', {
+    actorId,
+    actorUsername: actor.username,
+    actorDisplayName: actor.displayName,
+    photoId,
+  });
 }
 
 export async function hasUserLiked(userId: string, photoId: string): Promise<boolean> {

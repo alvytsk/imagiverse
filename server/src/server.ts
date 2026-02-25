@@ -12,6 +12,7 @@ import { commentsRoutes } from './modules/comments/comments.routes';
 import { feedRoutes } from './modules/feed/feed.routes';
 import { healthRoutes } from './modules/health/health.routes';
 import { likesRoutes } from './modules/likes/likes.routes';
+import { notificationsRoutes } from './modules/notifications/notifications.routes';
 import { photoRoutes } from './modules/photos/photos.routes';
 import { usersRoutes } from './modules/users/users.routes';
 import { redis } from './plugins/redis';
@@ -73,6 +74,7 @@ async function start(): Promise<void> {
   await server.register(likesRoutes, { prefix: '/api' });
   await server.register(commentsRoutes, { prefix: '/api' });
   await server.register(feedRoutes, { prefix: '/api' });
+  await server.register(notificationsRoutes, { prefix: '/api' });
   await server.register(usersRoutes, { prefix: '/api' });
 
   // ── Start listening ────────────────────────────────────────────────────────

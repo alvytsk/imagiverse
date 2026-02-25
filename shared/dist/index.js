@@ -20,6 +20,7 @@ __exportStar(require("./schemas/auth"), exports);
 __exportStar(require("./schemas/comments"), exports);
 __exportStar(require("./schemas/feed"), exports);
 __exportStar(require("./schemas/likes"), exports);
+__exportStar(require("./schemas/notifications"), exports);
 __exportStar(require("./schemas/photos"), exports);
 __exportStar(require("./schemas/users"), exports);
 __exportStar(require("./types/api"), exports);
