@@ -8,6 +8,7 @@ import { env } from './config/env';
 import { runMigrations } from './db/migrate';
 import { authenticate } from './middleware/auth';
 import { adminRoutes } from './modules/admin/admin.routes';
+import { albumsRoutes } from './modules/albums/albums.routes';
 import { authRoutes } from './modules/auth/auth.routes';
 import { commentsRoutes } from './modules/comments/comments.routes';
 import { feedRoutes } from './modules/feed/feed.routes';
@@ -77,6 +78,7 @@ async function start(): Promise<void> {
   await server.register(feedRoutes, { prefix: '/api' });
   await server.register(notificationsRoutes, { prefix: '/api' });
   await server.register(usersRoutes, { prefix: '/api' });
+  await server.register(albumsRoutes, { prefix: '/api' });
   await server.register(adminRoutes, { prefix: '/api' });
 
   // ── Start listening ────────────────────────────────────────────────────────

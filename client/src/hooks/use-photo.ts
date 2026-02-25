@@ -106,17 +106,42 @@ export function usePhotoComments(photoId: string) {
   });
 }
 
+export function useCommentReplies(commentId: string) {
+  return useInfiniteQuery({
+    queryKey: ['comments', commentId, 'replies'],
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: '20' });
+      if (pageParam) params.set('cursor', pageParam);
+      return api.get<PaginatedResponse<CommentResponse>>(
+        `/comments/${commentId}/replies?${params}`,
+        { auth: false },
+      );
+    },
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.hasMore
+        ? lastPage.pagination.nextCursor
+        : undefined,
+    initialPageParam: '' as string,
+    enabled: false,
+  });
+}
+
 export function useAddComment(photoId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (input: CreateCommentInput) =>
       api.post<CommentResponse>(`/photos/${photoId}/comments`, input),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
         queryKey: ['photos', photoId, 'comments'],
       });
       queryClient.invalidateQueries({ queryKey: ['photos', photoId] });
+      if (variables.parentId) {
+        queryClient.invalidateQueries({
+          queryKey: ['comments', variables.parentId, 'replies'],
+        });
+      }
     },
     onError: (err) => {
       if (err instanceof ApiClientError) {

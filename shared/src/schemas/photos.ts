@@ -7,6 +7,9 @@ export const UpdateCaptionSchema = z.object({
 
 export type UpdateCaptionInput = z.infer<typeof UpdateCaptionSchema>;
 
+export const PHOTO_VISIBILITY = ['public', 'private'] as const;
+export type PhotoVisibility = (typeof PHOTO_VISIBILITY)[number];
+
 export interface PhotoThumbnails {
   small: string | null; // 256px wide
   medium: string | null; // 800px wide
@@ -18,6 +21,7 @@ export interface PhotoResponse {
   userId: string;
   caption: string | null;
   status: PhotoStatus;
+  visibility: PhotoVisibility;
   thumbnails: PhotoThumbnails;
   blurhash: string | null;
   width: number | null;

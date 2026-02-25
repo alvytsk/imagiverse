@@ -230,7 +230,11 @@ export async function getUserPhotos(
     }
   }
 
-  const baseCondition = and(eq(photos.userId, userId), eq(photos.status, 'ready'));
+  const baseCondition = and(
+    eq(photos.userId, userId),
+    eq(photos.status, 'ready'),
+    eq(photos.visibility, 'public')
+  );
   const whereConditions = cursorCondition ? and(baseCondition, cursorCondition) : baseCondition;
 
   const rows = await db
@@ -239,6 +243,7 @@ export async function getUserPhotos(
       userId: photos.userId,
       caption: photos.caption,
       status: photos.status,
+      visibility: photos.visibility,
       thumbSmallKey: photos.thumbSmallKey,
       thumbMediumKey: photos.thumbMediumKey,
       thumbLargeKey: photos.thumbLargeKey,
@@ -274,6 +279,7 @@ export async function getUserPhotos(
         userId: row.userId,
         caption: row.caption,
         status: row.status as PhotoResponse['status'],
+        visibility: row.visibility as PhotoResponse['visibility'],
         thumbnails: { small, medium, large },
         blurhash: row.blurhash,
         width: row.width,

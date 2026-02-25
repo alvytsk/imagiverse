@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { CreateCommentSchema } from 'imagiverse-shared';
 import { authenticate } from '../../middleware/auth';
 import type { CommentIdParams, PaginationQuery, PhotoIdParams } from './comments.schema';
-import { createComment, deleteComment, getReadyPhoto, listComments } from './comments.service';
+import { createComment, deleteComment, getReadyPhoto, listComments, listReplies } from './comments.service';
 
 function validationError(details: Array<{ field: string; message: string }>) {
   return {
@@ -40,8 +40,17 @@ export async function commentsRoutes(fastify: FastifyInstance): Promise<void> {
           );
       }
 
-      const comment = await createComment(userId, photoId, result.data.body);
-      return reply.status(201).send(comment);
+      try {
+        const comment = await createComment(userId, photoId, result.data.body, result.data.parentId);
+        return reply.status(201).send(comment);
+      } catch (err) {
+        if (err instanceof Error && err.message === 'PARENT_NOT_FOUND') {
+          return reply.status(404).send({
+            error: { code: 'NOT_FOUND', message: 'Parent comment not found' },
+          });
+        }
+        throw err;
+      }
     },
   });
 
@@ -55,6 +64,21 @@ export async function commentsRoutes(fastify: FastifyInstance): Promise<void> {
 
         const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined;
         const response = await listComments(photoId, cursor, parsedLimit);
+        return reply.send(response);
+      },
+    }
+  );
+
+  // ── GET /comments/:id/replies ─────────────────────────────────────────────
+  fastify.get<{ Params: CommentIdParams; Querystring: PaginationQuery }>(
+    '/comments/:id/replies',
+    {
+      handler: async (request, reply) => {
+        const { id } = request.params;
+        const { cursor, limit } = request.query;
+
+        const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined;
+        const response = await listReplies(id, cursor, parsedLimit);
         return reply.send(response);
       },
     }

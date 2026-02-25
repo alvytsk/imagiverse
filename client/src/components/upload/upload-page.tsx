@@ -1,6 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from 'imagiverse-shared';
-import { ImagePlus, Upload, X } from 'lucide-react';
+import type { PhotoVisibility } from 'imagiverse-shared';
+import { Eye, EyeOff, ImagePlus, Upload, X } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -16,6 +17,7 @@ export function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
+  const [visibility, setVisibility] = useState<PhotoVisibility>('public');
   const [isResizing, setIsResizing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -81,6 +83,7 @@ export function UploadPage() {
       if (caption.trim()) {
         formData.append('caption', caption.trim());
       }
+      formData.append('visibility', visibility);
 
       const token = useAuthStore.getState().accessToken;
       const res = await fetch('/api/photos', {
@@ -211,6 +214,34 @@ export function UploadPage() {
               {caption.length}/2000
             </p>
           </div>
+
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant={visibility === 'public' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setVisibility('public')}
+              className="flex-1"
+            >
+              <Eye className="h-4 w-4 mr-1.5" />
+              Public
+            </Button>
+            <Button
+              type="button"
+              variant={visibility === 'private' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setVisibility('private')}
+              className="flex-1"
+            >
+              <EyeOff className="h-4 w-4 mr-1.5" />
+              Private
+            </Button>
+          </div>
+          {visibility === 'private' && (
+            <p className="text-xs text-muted-foreground">
+              This photo will only be visible to you.
+            </p>
+          )}
 
           <Button
             className="w-full"

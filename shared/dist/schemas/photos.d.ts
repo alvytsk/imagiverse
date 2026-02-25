@@ -8,6 +8,8 @@ export declare const UpdateCaptionSchema: z.ZodObject<{
     caption?: string | null | undefined;
 }>;
 export type UpdateCaptionInput = z.infer<typeof UpdateCaptionSchema>;
+export declare const PHOTO_VISIBILITY: readonly ["public", "private"];
+export type PhotoVisibility = (typeof PHOTO_VISIBILITY)[number];
 export interface PhotoThumbnails {
     small: string | null;
     medium: string | null;
@@ -18,6 +20,7 @@ export interface PhotoResponse {
     userId: string;
     caption: string | null;
     status: PhotoStatus;
+    visibility: PhotoVisibility;
     thumbnails: PhotoThumbnails;
     blurhash: string | null;
     width: number | null;

@@ -26,9 +26,9 @@ export function Navbar() {
   }, [logout, navigate]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-40 border-b border-border/40 bg-card/80 shadow-[0_1px_3px_0_oklch(0_0_0/0.06),0_4px_12px_0_oklch(0_0_0/0.04)] backdrop-blur-xl dark:shadow-[0_1px_3px_0_oklch(0_0_0/0.2),0_4px_12px_0_oklch(0_0_0/0.15)]">
       <div className="container mx-auto flex h-16 items-center gap-4 px-4">
-        <Link to="/" className="flex items-center gap-2 font-extrabold text-lg">
+        <Link to="/" className="flex items-center gap-2 font-extrabold text-lg drop-shadow-[0_1px_2px_oklch(0_0_0/0.15)]">
           <Camera className="h-6 w-6 text-primary" />
           <span className="hidden sm:inline bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
             Imagiverse

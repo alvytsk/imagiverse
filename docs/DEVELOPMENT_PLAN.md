@@ -1121,14 +1121,18 @@ on manual trigger / tag:
 
 #### Epic V2.5: Advanced Features
 
+**Status: In progress** (V2.5.1, V2.5.4, V2.5.5 complete)
+
 | Task | DoD |
 |---|---|
-| V2.5.1 Threaded/nested comments | Reply-to-comment UI and API |
+| V2.5.1 Threaded/nested comments | ✓ `comments.parent_id`; `CreateCommentSchema.parentId`; `GET /api/comments/:id/replies`. UI: Reply button, "N replies" expand, nested replies with `useCommentReplies`. |
 | V2.5.2 Push notifications (web push / FCM) | Users receive browser push for likes/comments |
 | V2.5.3 Email notifications (digest: daily/weekly) | Email sent; user can configure frequency or opt out |
-| V2.5.4 Photo albums/collections | Users can group photos into named albums |
-| V2.5.5 Private photos (visible only to author or selected users) | Privacy toggle on upload; enforced in API |
+| V2.5.4 Photo albums/collections | ✓ `albums` + `album_photos` tables; full CRUD module `server/src/modules/albums/`. Endpoints: POST/GET/PATCH/DELETE albums, add/remove photos. Client: `use-albums.ts`; album cover = last added photo. |
+| V2.5.5 Private photos (visible only to author or selected users) | ✓ `photos.visibility` (public/private). Upload accepts visibility; GET /photos/:id returns 404 for private unless author; feed and user profile list only public. Upload page: Public/Private toggle. |
 | V2.5.6 i18n infrastructure | App supports English + 1 additional language |
+
+**Other (done):** Simple site footer (copyright + tagline) in root layout.
 
 #### Epic V2.6: ML & Advanced Moderation
 

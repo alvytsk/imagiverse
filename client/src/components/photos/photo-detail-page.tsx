@@ -1,5 +1,6 @@
 import { Link, useParams, useRouterState } from '@tanstack/react-router';
-import { AlertTriangle, Heart, Loader2, Maximize2, MessageCircle, SendHorizontal, Trash2, Upload, X } from 'lucide-react';
+import type { CommentResponse } from 'imagiverse-shared';
+import { AlertTriangle, ChevronDown, ChevronUp, Heart, Loader2, Maximize2, MessageCircle, Reply, SendHorizontal, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -12,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import {
   useAddComment,
+  useCommentReplies,
   useDeleteComment,
   useLikePhoto,
   usePhoto,
@@ -240,14 +242,25 @@ function CommentsSection({ photoId }: { photoId: string }) {
   const addComment = useAddComment(photoId);
   const deleteComment = useDeleteComment(photoId);
   const [commentText, setCommentText] = useState('');
+  const [replyingTo, setReplyingTo] = useState<{ id: string; displayName: string } | null>(null);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const currentUserId = useAuthStore((s) => s.user?.id);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSubmitComment = async () => {
     const body = commentText.trim();
     if (!body) return;
-    await addComment.mutateAsync({ body });
+    await addComment.mutateAsync({
+      body,
+      parentId: replyingTo?.id,
+    });
     setCommentText('');
+    setReplyingTo(null);
+  };
+
+  const handleReply = (comment: CommentResponse) => {
+    setReplyingTo({ id: comment.id, displayName: comment.displayName });
+    inputRef.current?.focus();
   };
 
   const comments = data?.pages.flatMap((p) => p.data) ?? [];
@@ -276,44 +289,16 @@ function CommentsSection({ photoId }: { photoId: string }) {
         )}
 
         {comments.map((comment) => (
-          <div key={comment.id} className="flex gap-2 group">
-            <Link to="/users/$userId" params={{ userId: comment.userId }}>
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="text-xs">
-                  {comment.displayName.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </Link>
-            <div className="flex-1 min-w-0">
-              <div className="bg-muted rounded-2xl px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <Link
-                    to="/users/$userId"
-                    params={{ userId: comment.userId }}
-                    className="text-sm font-medium hover:underline"
-                  >
-                    {comment.displayName}
-                  </Link>
-                  <span className="text-xs text-muted-foreground">
-                    {timeAgo(comment.createdAt)}
-                  </span>
-                  {currentUserId === comment.userId && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity ml-auto"
-                      onClick={() => deleteComment.mutate(comment.id)}
-                      disabled={deleteComment.isPending}
-                      aria-label="Delete comment"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  )}
-                </div>
-                <p className="text-sm break-words">{comment.body}</p>
-              </div>
-            </div>
-          </div>
+          <CommentItem
+            key={comment.id}
+            comment={comment}
+            photoId={photoId}
+            currentUserId={currentUserId}
+            isAuthenticated={isAuthenticated}
+            onDelete={(id) => deleteComment.mutate(id)}
+            onReply={handleReply}
+            deleteIsPending={deleteComment.isPending}
+          />
         ))}
 
         {hasNextPage && (
@@ -323,38 +308,52 @@ function CommentsSection({ photoId }: { photoId: string }) {
             className="w-full"
             onClick={() => fetchNextPage()}
             disabled={isFetchingNextPage}
-            isLoading={isFetchingNextPage}
           >
-            Load more comments
+            {isFetchingNextPage ? 'Loading...' : 'Load more comments'}
           </Button>
         )}
       </div>
 
       {isAuthenticated ? (
-        <div className="flex gap-2 items-end">
-          <Textarea
-            value={commentText}
-            onChange={(e) => setCommentText(e.target.value)}
-            placeholder="Add a comment..."
-            className="min-h-[40px] resize-none rounded-2xl"
-            rows={1}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmitComment();
-              }
-            }}
-          />
-          <Button
-            size="icon"
-            onClick={handleSubmitComment}
-            disabled={!commentText.trim() || addComment.isPending}
-            isLoading={addComment.isPending}
-            className="shrink-0"
-            aria-label="Submit comment"
-          >
-            <SendHorizontal className="h-4 w-4" />
-          </Button>
+        <div className="space-y-2">
+          {replyingTo && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-1.5">
+              <Reply className="h-3 w-3" />
+              <span>Replying to <strong>{replyingTo.displayName}</strong></span>
+              <button
+                onClick={() => setReplyingTo(null)}
+                className="ml-auto hover:text-foreground"
+                aria-label="Cancel reply"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+          <div className="flex gap-2 items-end">
+            <Textarea
+              ref={inputRef}
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              placeholder={replyingTo ? `Reply to ${replyingTo.displayName}...` : 'Add a comment...'}
+              className="min-h-[40px] resize-none rounded-2xl"
+              rows={1}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmitComment();
+                }
+              }}
+            />
+            <Button
+              size="icon"
+              onClick={handleSubmitComment}
+              disabled={!commentText.trim() || addComment.isPending}
+              className="shrink-0"
+              aria-label="Submit comment"
+            >
+              <SendHorizontal className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       ) : (
         <p className="text-sm text-muted-foreground text-center py-2">
@@ -364,6 +363,141 @@ function CommentsSection({ photoId }: { photoId: string }) {
           to comment
         </p>
       )}
+    </div>
+  );
+}
+
+function CommentItem({
+  comment,
+  photoId,
+  currentUserId,
+  isAuthenticated,
+  onDelete,
+  onReply,
+  deleteIsPending,
+}: {
+  comment: CommentResponse;
+  photoId: string;
+  currentUserId?: string;
+  isAuthenticated: boolean;
+  onDelete: (id: string) => void;
+  onReply: (comment: CommentResponse) => void;
+  deleteIsPending: boolean;
+}) {
+  const [showReplies, setShowReplies] = useState(false);
+  const { data: repliesData, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
+    useCommentReplies(comment.id);
+
+  const handleToggleReplies = () => {
+    if (!showReplies && comment.replyCount > 0) {
+      refetch();
+    }
+    setShowReplies(!showReplies);
+  };
+
+  const replies = repliesData?.pages.flatMap((p) => p.data) ?? [];
+
+  return (
+    <div className="flex gap-2 group">
+      <Link to="/users/$userId" params={{ userId: comment.userId }}>
+        <Avatar className="h-8 w-8">
+          <AvatarFallback className="text-xs">
+            {comment.displayName.charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      </Link>
+      <div className="flex-1 min-w-0">
+        <div className="bg-muted rounded-2xl px-3 py-2">
+          <div className="flex items-center gap-2">
+            <Link
+              to="/users/$userId"
+              params={{ userId: comment.userId }}
+              className="text-sm font-medium hover:underline"
+            >
+              {comment.displayName}
+            </Link>
+            <span className="text-xs text-muted-foreground">
+              {timeAgo(comment.createdAt)}
+            </span>
+            {currentUserId === comment.userId && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity ml-auto"
+                onClick={() => onDelete(comment.id)}
+                disabled={deleteIsPending}
+                aria-label="Delete comment"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+          <p className="text-sm break-words">{comment.body}</p>
+        </div>
+
+        <div className="flex items-center gap-3 mt-1 ml-2">
+          {isAuthenticated && (
+            <button
+              onClick={() => onReply(comment)}
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+            >
+              <Reply className="h-3 w-3" />
+              Reply
+            </button>
+          )}
+          {comment.replyCount > 0 && (
+            <button
+              onClick={handleToggleReplies}
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              {showReplies ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              {comment.replyCount} {comment.replyCount === 1 ? 'reply' : 'replies'}
+            </button>
+          )}
+        </div>
+
+        {showReplies && (
+          <div className="mt-2 ml-4 space-y-2 border-l-2 border-muted pl-3">
+            {replies.map((reply) => (
+              <div key={reply.id} className="flex gap-2 group/reply">
+                <Link to="/users/$userId" params={{ userId: reply.userId }}>
+                  <Avatar className="h-6 w-6">
+                    <AvatarFallback className="text-[10px]">
+                      {reply.displayName.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
+                <div className="flex-1 min-w-0">
+                  <div className="bg-muted/60 rounded-xl px-2.5 py-1.5">
+                    <div className="flex items-center gap-2">
+                      <Link
+                        to="/users/$userId"
+                        params={{ userId: reply.userId }}
+                        className="text-xs font-medium hover:underline"
+                      >
+                        {reply.displayName}
+                      </Link>
+                      <span className="text-[10px] text-muted-foreground">
+                        {timeAgo(reply.createdAt)}
+                      </span>
+                    </div>
+                    <p className="text-xs break-words">{reply.body}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {hasNextPage && (
+              <button
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="text-xs text-primary hover:underline ml-2"
+              >
+                {isFetchingNextPage ? 'Loading...' : 'Load more replies'}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

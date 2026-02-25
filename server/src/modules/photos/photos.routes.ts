@@ -1,6 +1,7 @@
 import multipartPlugin from '@fastify/multipart';
 import type { FastifyInstance } from 'fastify';
-import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, UpdateCaptionSchema } from 'imagiverse-shared';
+import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, PHOTO_VISIBILITY, UpdateCaptionSchema } from 'imagiverse-shared';
+import type { PhotoVisibility } from 'imagiverse-shared';
 import sharp from 'sharp';
 import { authenticate } from '../../middleware/auth';
 import type { PhotoIdParams } from './photos.schema';
@@ -99,12 +100,22 @@ export async function photoRoutes(fastify: FastifyInstance): Promise<void> {
         caption = captionField.value;
       }
 
+      // Extract visibility from multipart fields
+      const visibilityField = data.fields.visibility;
+      let visibility: PhotoVisibility = 'public';
+      if (visibilityField && 'value' in visibilityField && typeof visibilityField.value === 'string') {
+        if (PHOTO_VISIBILITY.includes(visibilityField.value as PhotoVisibility)) {
+          visibility = visibilityField.value as PhotoVisibility;
+        }
+      }
+
       const photo = await uploadPhoto({
         userId,
         fileBuffer,
         mimeType,
         sizeBytes,
         caption,
+        visibility,
         correlationId: request.id,
       });
 
@@ -122,6 +133,20 @@ export async function photoRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(404).send({
           error: { code: 'NOT_FOUND', message: 'Photo not found' },
         });
+      }
+
+      // Enforce privacy: private photos visible only to author
+      if (photo.visibility === 'private') {
+        let requestUserId: string | undefined;
+        try {
+          await authenticate(request, reply);
+          requestUserId = request.user?.id;
+        } catch { /* not authenticated */ }
+        if (requestUserId !== photo.userId) {
+          return reply.status(404).send({
+            error: { code: 'NOT_FOUND', message: 'Photo not found' },
+          });
+        }
       }
 
       const response = await buildPhotoResponse(photo);

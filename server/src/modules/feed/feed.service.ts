@@ -71,7 +71,7 @@ export async function getFeed(
     }
   }
 
-  const baseCondition = eq(photos.status, 'ready');
+  const baseCondition = and(eq(photos.status, 'ready'), eq(photos.visibility, 'public'));
   const whereConditions = cursorCondition ? and(baseCondition, cursorCondition) : baseCondition;
 
   const rows = await db

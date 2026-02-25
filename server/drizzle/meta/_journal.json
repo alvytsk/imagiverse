@@ -29,6 +29,13 @@
       "when": 1740441600000,
       "tag": "0003_blurhash",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1740528000000,
+      "tag": "0004_threads_albums_privacy",
+      "breakpoints": true
     }
   ]
 }

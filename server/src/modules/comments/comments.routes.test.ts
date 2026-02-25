@@ -93,7 +93,8 @@ describe('POST /api/photos/:photoId/comments', () => {
     expect(mockService.createComment).toHaveBeenCalledWith(
       'user-uuid-1',
       'photo-uuid-1',
-      'Great photo!'
+      'Great photo!',
+      undefined
     );
   });
 
