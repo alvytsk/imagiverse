@@ -999,6 +999,8 @@ on manual trigger / tag:
 
 #### Epic V1.3: Notifications (In-App)
 
+**Status: ✓ COMPLETE**
+
 | Task | DoD |
 |---|---|
 | V1.3.1 `notifications` table (userId, type, payload, read, created_at) | Migration runs |
@@ -1088,6 +1090,7 @@ on manual trigger / tag:
 | V2.2.3 Notification service consumes events | Decoupled from API; notifications created asynchronously |
 | V2.2.4 ES sync consumes user-update events | ES stays in sync without dual-write in API code |
 | V2.2.5 Analytics event consumer (for future dashboards) | Events stored for analysis |
+| V2.2.6 WebSocket server for real-time notifications | Clients subscribe to personal notification channel; notifications delivered via WebSocket (fallback to polling for unsupported clients) |
 
 #### Epic V2.3: Advanced Feed
 
