@@ -39,19 +39,27 @@ vi.mock('./queue', () => ({
   THUMBNAIL_QUEUE_NAME: 'generate-thumbnails',
 }));
 
-// Mock sharp: returns a chainable object with metadata(), rotate(), resize(), webp(), toBuffer()
+vi.mock('blurhash', () => ({
+  encode: vi.fn(() => 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'),
+}));
+
+// Mock sharp: returns a chainable object with metadata(), rotate(), resize(), webp(), ensureAlpha(), raw(), toBuffer()
 const mockSharpInstance = vi.hoisted(() => {
   const instance = {
     metadata: vi.fn(),
     rotate: vi.fn(),
     resize: vi.fn(),
     webp: vi.fn(),
+    ensureAlpha: vi.fn(),
+    raw: vi.fn(),
     toBuffer: vi.fn(),
   };
   // Chain returns
   instance.rotate.mockReturnValue(instance);
   instance.resize.mockReturnValue(instance);
   instance.webp.mockReturnValue(instance);
+  instance.ensureAlpha.mockReturnValue(instance);
+  instance.raw.mockReturnValue(instance);
   return instance;
 });
 
@@ -93,7 +101,15 @@ describe('processThumbnailJob', () => {
 
     // Default: valid metadata
     mockSharpInstance.metadata.mockResolvedValue({ width: 3000, height: 2000, format: 'jpeg' });
-    mockSharpInstance.toBuffer.mockResolvedValue(Buffer.from('thumbnail-data'));
+    mockSharpInstance.toBuffer.mockImplementation((opts?: { resolveWithObject?: boolean }) => {
+      if (opts?.resolveWithObject) {
+        return Promise.resolve({
+          data: Buffer.alloc(32 * 32 * 4),
+          info: { width: 32, height: 32, channels: 4 },
+        });
+      }
+      return Promise.resolve(Buffer.from('thumbnail-data'));
+    });
   });
 
   it('downloads original, generates 3 thumbnails, uploads them, and updates DB', async () => {
@@ -126,7 +142,7 @@ describe('processThumbnailJob', () => {
       'image/webp'
     );
 
-    // Should update DB with status='ready' and thumbnail keys
+    // Should update DB with status='ready', thumbnail keys, and blurhash
     expect(mockDb.update).toHaveBeenCalled();
     expect(mockDb.__mocks.setFn).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -136,6 +152,7 @@ describe('processThumbnailJob', () => {
         thumbLargeKey: 'thumbs/photo-1/large.webp',
         width: 3000,
         height: 2000,
+        blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
       })
     );
   });
@@ -187,8 +204,8 @@ describe('processThumbnailJob', () => {
 
     await processThumbnailJob(job);
 
-    // 3 sizes × 1 call each = 3 resize calls
-    expect(mockSharpInstance.resize).toHaveBeenCalledTimes(3);
+    // 3 thumbnail sizes + 1 blurhash resize = 4 resize calls
+    expect(mockSharpInstance.resize).toHaveBeenCalledTimes(4);
     expect(mockSharpInstance.resize).toHaveBeenCalledWith(256, undefined, {
       withoutEnlargement: true,
     });
@@ -197,6 +214,9 @@ describe('processThumbnailJob', () => {
     });
     expect(mockSharpInstance.resize).toHaveBeenCalledWith(1600, undefined, {
       withoutEnlargement: true,
+    });
+    expect(mockSharpInstance.resize).toHaveBeenCalledWith(32, 32, {
+      fit: 'fill',
     });
   });
 
@@ -219,10 +239,12 @@ describe('processThumbnailJob', () => {
 
     await processThumbnailJob(job);
 
-    // For each thumbnail, rotate should come before resize
-    for (let i = 0; i < callOrder.length; i += 2) {
-      expect(callOrder[i]).toBe('rotate');
-      expect(callOrder[i + 1]).toBe('resize');
+    // 3 thumbnail chains (rotate→resize each) + 1 blurhash resize (no rotate)
+    // Filter only the first 6 entries (3 rotate-resize pairs for thumbnails)
+    const thumbnailOps = callOrder.slice(0, 6);
+    for (let i = 0; i < thumbnailOps.length; i += 2) {
+      expect(thumbnailOps[i]).toBe('rotate');
+      expect(thumbnailOps[i + 1]).toBe('resize');
     }
   });
 });

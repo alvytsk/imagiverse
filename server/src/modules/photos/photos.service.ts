@@ -106,6 +106,7 @@ export async function buildPhotoResponse(photo: {
   thumbSmallKey: string | null;
   thumbMediumKey: string | null;
   thumbLargeKey: string | null;
+  blurhash: string | null;
   width: number | null;
   height: number | null;
   likeCount: number;
@@ -127,6 +128,7 @@ export async function buildPhotoResponse(photo: {
     caption: photo.caption,
     status: photo.status as PhotoResponse['status'],
     thumbnails: { small, medium, large },
+    blurhash: photo.blurhash,
     width: photo.width,
     height: photo.height,
     likeCount: photo.likeCount,

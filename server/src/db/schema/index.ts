@@ -64,6 +64,7 @@ export const photos = pgTable(
     height: integer('height'),
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
     mimeType: text('mime_type'),
+    blurhash: text('blurhash'),
     likeCount: integer('like_count').notNull().default(0),
     commentCount: integer('comment_count').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

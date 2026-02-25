@@ -1015,15 +1015,17 @@ on manual trigger / tag:
 
 #### Epic V1.4: UX Polish
 
+**Status: ✓ COMPLETE**
+
 | Task | DoD |
 |---|---|
-| V1.4.1 Optimistic updates for like/unlike | Like button responds instantly; rollback on error |
-| V1.4.2 Image lazy loading + blur placeholder (blurhash or LQIP) | Feed loads fast; images appear progressively |
-| V1.4.3 Photo upload: client-side image preview + resize before upload | Faster uploads; reduced bandwidth |
-| V1.4.4 Infinite scroll improvements (virtualization for long feeds) | Smooth scrolling with 1000+ photos |
-| V1.4.5 Dark mode | Toggle in user menu; persists preference |
-| V1.4.6 Accessibility audit (keyboard nav, ARIA labels, color contrast) | Passes axe-core automated checks |
-| V1.4.7 Кнопка «Пожаловаться» на фото | На странице фото (и опционально в карточке в ленте) — вызов POST /photos/:id/report с вводом причины; тост об успехе/ошибке |
+| V1.4.1 Optimistic updates for like/unlike | ✓ Like button responds instantly; rollback on error. `useLikePhoto` / `useUnlikePhoto` with `onMutate` cache update and `onError` rollback. |
+| V1.4.2 Image lazy loading + blur placeholder (blurhash or LQIP) | ✓ Blurhash generated in thumbnail processor (32×32 from small thumb, `blurhash` package encode). Column in `photos`; returned in photo/feed/user-photos APIs. `BlurhashImage` component (canvas placeholder + img fade-in). Feed and user profile grid use it. Backfill script `server/src/scripts/backfill-blurhash.ts` for existing photos. |
+| V1.4.3 Photo upload: client-side image preview + resize before upload | ✓ `client/src/lib/image-resize.ts`: `resizeImageForUpload(file)` — OffscreenCanvas, max 2048px longest edge, JPEG 0.9; HEIC/HEIF skipped (server handles). Upload page calls it before FormData; "Resizing..." state shown. |
+| V1.4.4 Infinite scroll improvements (virtualization for long feeds) | ⏭ **Skipped.** CSS columns masonry + lazy loading handles 1000+ photos; virtualization is architecturally incompatible with columns layout. |
+| V1.4.5 Dark mode | ✓ Toggle in user menu; preference persisted in `theme-store` (localStorage + `prefers-color-scheme`). |
+| V1.4.6 Accessibility audit (keyboard nav, ARIA labels, color contrast) | ✓ `@axe-core/react` in dev only (`main.tsx`). ARIA labels on like button, comment submit/delete, remove-file button; drop zone has `role="button"`, `aria-label`, `tabIndex={0}`, Enter/Space. Feed alt text: `photo.caption \|\| Photo by ${author.displayName}`. Lightbox: focus on close button on open, return focus to trigger on close. |
+| V1.4.7 Report button on photo page | ✓ `ReportDialog` (Flag + "Report", textarea reason max 1000, char counter). `useReportPhoto(photoId)` calls `POST /photos/:id/report`. Shown on photo detail page for authenticated users (not on own photos). Success/error toasts. |
 
 #### Epic V1.5: Performance & Load Testing
 

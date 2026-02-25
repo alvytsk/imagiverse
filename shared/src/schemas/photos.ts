@@ -19,6 +19,7 @@ export interface PhotoResponse {
   caption: string | null;
   status: PhotoStatus;
   thumbnails: PhotoThumbnails;
+  blurhash: string | null;
   width: number | null;
   height: number | null;
   likeCount: number;

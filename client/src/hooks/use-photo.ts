@@ -128,6 +128,23 @@ export function useAddComment(photoId: string) {
   });
 }
 
+export function useReportPhoto(photoId: string) {
+  return useMutation({
+    mutationFn: (reason: string) =>
+      api.post(`/photos/${photoId}/report`, { reason }),
+    onSuccess: () => {
+      toast.success('Report submitted. Thank you for helping keep the community safe.');
+    },
+    onError: (err) => {
+      if (err instanceof ApiClientError) {
+        toast.error(err.message);
+      } else {
+        toast.error('Failed to submit report');
+      }
+    },
+  });
+}
+
 export function useDeleteComment(photoId: string) {
   const queryClient = useQueryClient();
 

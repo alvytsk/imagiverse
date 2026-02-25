@@ -4,6 +4,7 @@ import { Camera, Heart, MessageCircle } from 'lucide-react';
 import { useCallback, useEffect, useRef } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { BlurhashImage } from '@/components/ui/blurhash-image';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useFeed } from '@/hooks/use-feed';
@@ -99,11 +100,11 @@ function FeedCard({ photo }: { photo: FeedItemResponse }) {
         className="group block overflow-hidden rounded-2xl bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
       >
         <div className="relative" style={{ paddingBottom }}>
-          <img
+          <BlurhashImage
+            blurhash={photo.blurhash}
             src={photo.thumbnails.medium ?? photo.thumbnails.small ?? ''}
-            alt={photo.caption ?? 'Photo'}
-            className="absolute inset-0 h-full w-full object-cover"
-            loading="lazy"
+            alt={photo.caption || `Photo by ${photo.author.displayName}`}
+            className="absolute inset-0 h-full w-full"
           />
           <div className="absolute bottom-2 right-2 flex items-center gap-2 rounded-full bg-black/30 px-2.5 py-1 text-white text-xs backdrop-blur-sm transition-all group-hover:bg-black/50">
             <span className="flex items-center gap-1">

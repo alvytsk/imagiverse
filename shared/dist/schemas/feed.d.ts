@@ -4,6 +4,7 @@ export interface FeedItemResponse {
     userId: string;
     caption: string | null;
     thumbnails: PhotoThumbnails;
+    blurhash: string | null;
     width: number | null;
     height: number | null;
     likeCount: number;

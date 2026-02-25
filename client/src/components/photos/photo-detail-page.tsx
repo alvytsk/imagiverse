@@ -1,10 +1,11 @@
 import { Link, useParams, useRouterState } from '@tanstack/react-router';
 import { AlertTriangle, Heart, Loader2, Maximize2, MessageCircle, SendHorizontal, Trash2, Upload, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { ReportDialog } from '@/components/photos/report-dialog';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -16,6 +17,7 @@ import {
   usePhoto,
   usePhotoComments,
 } from '@/hooks/use-photo';
+import { useUser } from '@/hooks/use-users';
 import { timeAgo } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
 
@@ -25,13 +27,18 @@ export function PhotoDetailPage() {
     select: (s) => (s.location.state as { localPreview?: string })?.localPreview,
   });
   const { data: photo, isLoading, error } = usePhoto(photoId);
+  const { data: author } = useUser(photo?.userId ?? '');
   const { likeMutation, unlikeMutation, isAuthenticated } =
     useLikePhoto(photoId);
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const [liked, setLiked] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const lightboxCloseRef = useRef<HTMLButtonElement>(null);
+  const lightboxTriggerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!lightboxOpen) return;
+    requestAnimationFrame(() => lightboxCloseRef.current?.focus());
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setLightboxOpen(false);
     };
@@ -40,6 +47,7 @@ export function PhotoDetailPage() {
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
+      lightboxTriggerRef.current?.focus();
     };
   }, [lightboxOpen]);
 
@@ -100,7 +108,12 @@ export function PhotoDetailPage() {
       <div className="grid gap-6 md:grid-cols-[1fr_380px] md:max-h-[85vh]">
         <div
           className={`overflow-hidden rounded-2xl bg-muted/20 dark:bg-black relative flex items-center justify-center md:min-h-0 ${!isProcessing && imageSrc ? 'cursor-zoom-in group' : ''}`}
-          onClick={() => !isProcessing && imageSrc && setLightboxOpen(true)}
+          onClick={(e) => {
+            if (!isProcessing && imageSrc) {
+              lightboxTriggerRef.current = e.currentTarget as HTMLElement;
+              setLightboxOpen(true);
+            }
+          }}
         >
           {imageSrc ? (
             <img
@@ -130,16 +143,23 @@ export function PhotoDetailPage() {
           <div className="flex items-center gap-3 pb-4">
             <Link to="/users/$userId" params={{ userId: photo.userId }}>
               <Avatar className="h-10 w-10">
-                <AvatarFallback>U</AvatarFallback>
+                {author?.avatarUrl ? (
+                  <AvatarImage src={author.avatarUrl} alt={author.displayName} />
+                ) : null}
+                <AvatarFallback className="text-sm">
+                  {author?.displayName
+                    ? author.displayName.charAt(0).toUpperCase()
+                    : '?'}
+                </AvatarFallback>
               </Avatar>
             </Link>
-            <div>
+            <div className="min-w-0">
               <Link
                 to="/users/$userId"
                 params={{ userId: photo.userId }}
-                className="font-medium hover:underline"
+                className="font-medium hover:underline truncate block"
               >
-                {photo.userId}
+                {author?.displayName ?? photo.userId}
               </Link>
               <p className="text-xs text-muted-foreground">
                 {timeAgo(photo.createdAt)}
@@ -158,6 +178,7 @@ export function PhotoDetailPage() {
               onClick={handleLikeToggle}
               disabled={isProcessing || likeMutation.isPending || unlikeMutation.isPending}
               className={liked ? 'text-red-500' : ''}
+              aria-label={liked ? 'Unlike photo' : 'Like photo'}
             >
               <Heart
                 className={`h-5 w-5 mr-1 transition-transform duration-200 ${liked ? 'fill-current scale-110' : ''}`}
@@ -168,6 +189,11 @@ export function PhotoDetailPage() {
               <MessageCircle className="h-5 w-5" />
               {photo.commentCount}
             </span>
+            {isAuthenticated && photo.userId !== currentUserId && (
+              <div className="ml-auto">
+                <ReportDialog photoId={photoId} />
+              </div>
+            )}
           </div>
 
           <Separator />
@@ -185,6 +211,7 @@ export function PhotoDetailPage() {
           aria-label="Full size image"
         >
           <button
+            ref={lightboxCloseRef}
             className="absolute top-4 right-4 z-10 rounded-full bg-white/10 p-2.5 text-white/80 hover:bg-white/20 hover:text-white transition-colors"
             onClick={(e) => {
               e.stopPropagation();
@@ -277,6 +304,7 @@ function CommentsSection({ photoId }: { photoId: string }) {
                       className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity ml-auto"
                       onClick={() => deleteComment.mutate(comment.id)}
                       disabled={deleteComment.isPending}
+                      aria-label="Delete comment"
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -323,6 +351,7 @@ function CommentsSection({ photoId }: { photoId: string }) {
             disabled={!commentText.trim() || addComment.isPending}
             isLoading={addComment.isPending}
             className="shrink-0"
+            aria-label="Submit comment"
           >
             <SendHorizontal className="h-4 w-4" />
           </Button>

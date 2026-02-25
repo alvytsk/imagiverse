@@ -3,6 +3,7 @@ import { Camera, Heart, MapPin } from 'lucide-react';
 import { useCallback, useEffect, useRef } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { BlurhashImage } from '@/components/ui/blurhash-image';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUser, useUserPhotos } from '@/hooks/use-users';
 
@@ -111,13 +112,11 @@ export function UserProfilePage() {
                 params={{ photoId: photo.id }}
                 className="group relative aspect-square overflow-hidden rounded-xl bg-muted"
               >
-                <img
-                  src={
-                    photo.thumbnails.medium ?? photo.thumbnails.small ?? ''
-                  }
+                <BlurhashImage
+                  blurhash={photo.blurhash}
+                  src={photo.thumbnails.medium ?? photo.thumbnails.small ?? ''}
                   alt={photo.caption ?? 'Photo'}
-                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  loading="lazy"
+                  className="h-full w-full transition-transform duration-300 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all duration-300 group-hover:bg-black/30">
                   <span className="flex items-center gap-1.5 text-white text-sm font-medium opacity-0 transition-opacity duration-300 group-hover:opacity-100">

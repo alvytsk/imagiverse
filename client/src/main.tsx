@@ -1,5 +1,6 @@
 import { RouterProvider, createRouter } from '@tanstack/react-router';
-import { StrictMode } from 'react';
+import React, { StrictMode } from 'react';
+import * as ReactDOM from 'react-dom';
 import { createRoot } from 'react-dom/client';
 
 import './index.css';
@@ -13,6 +14,10 @@ declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router;
   }
+}
+
+if (import.meta.env.DEV) {
+  import('@axe-core/react').then((axe) => axe.default(React, ReactDOM, 1000));
 }
 
 initThemeListener();
