@@ -1,21 +1,34 @@
 import { Link, useParams } from '@tanstack/react-router';
-import { Camera, Heart, MapPin } from 'lucide-react';
-import { useCallback, useEffect, useRef } from 'react';
+import { Camera, Heart, ImageIcon, Lock, MapPin } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { AlbumGrid } from '@/components/albums/album-grid';
+import { CreateAlbumDialog } from '@/components/albums/create-album-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { BlurhashImage } from '@/components/ui/blurhash-image';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUser, useUserPhotos } from '@/hooks/use-users';
+import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/stores/auth-store';
+
+type Tab = 'photos' | 'albums';
 
 export function UserProfilePage() {
   const { userId } = useParams({ from: '/users/$userId' });
   const { data: user, isLoading, error } = useUser(userId);
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const isOwner = !!currentUserId && currentUserId === userId;
+
+  const [activeTab, setActiveTab] = useState<Tab>('photos');
+  const [createAlbumOpen, setCreateAlbumOpen] = useState(false);
+
   const {
     data: photosData,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
     isLoading: photosLoading,
-  } = useUserPhotos(userId);
+  } = useUserPhotos(userId, isOwner);
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useCallback(
@@ -71,7 +84,7 @@ export function UserProfilePage() {
       </div>
 
       {/* User info */}
-      <div className="flex flex-col items-center sm:items-start gap-2 pb-8 sm:pl-2">
+      <div className="flex flex-col items-center sm:items-start gap-2 pb-6 sm:pl-2">
         <h1 className="text-2xl font-bold">{user.displayName}</h1>
         <p className="text-muted-foreground">@{user.username}</p>
 
@@ -90,53 +103,120 @@ export function UserProfilePage() {
         </span>
       </div>
 
-      {photosLoading ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-square rounded-xl" />
-          ))}
-        </div>
-      ) : photos.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <Camera className="h-12 w-12 text-muted-foreground mb-4" />
-          <p className="text-lg font-medium">No photos yet</p>
-        </div>
-      ) : (
+      {/* Tabs */}
+      <div className="flex gap-1 border-b mb-6">
+        <TabButton
+          active={activeTab === 'photos'}
+          onClick={() => setActiveTab('photos')}
+          icon={<Camera className="h-4 w-4" />}
+          label="Photos"
+        />
+        <TabButton
+          active={activeTab === 'albums'}
+          onClick={() => setActiveTab('albums')}
+          icon={<ImageIcon className="h-4 w-4" />}
+          label="Albums"
+        />
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'photos' && (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-            {photos.map((photo) => (
-              <Link
-                key={photo.id}
-                to="/photos/$photoId"
-                params={{ photoId: photo.id }}
-                className="group relative aspect-square overflow-hidden rounded-xl bg-muted"
-              >
-                <img
-                  src={
-                    photo.thumbnails.medium ?? photo.thumbnails.small ?? ''
-                  }
-                  alt={photo.caption ?? 'Photo'}
-                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  loading="lazy"
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all duration-300 group-hover:bg-black/30">
-                  <span className="flex items-center gap-1.5 text-white text-sm font-medium opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                    <Heart className="h-4 w-4" />
-                    {photo.likeCount}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-          <div ref={sentinelRef} className="h-10" />
-          {isFetchingNextPage && (
-            <div className="flex justify-center py-6">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          {photosLoading ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="aspect-square rounded-xl" />
+              ))}
             </div>
+          ) : photos.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Camera className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-lg font-medium">No photos yet</p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                {photos.map((photo) => (
+                  <Link
+                    key={photo.id}
+                    to="/photos/$photoId"
+                    params={{ photoId: photo.id }}
+                    className="group relative aspect-square overflow-hidden rounded-xl bg-muted"
+                  >
+                    <BlurhashImage
+                      blurhash={photo.blurhash}
+                      src={photo.thumbnails.medium ?? photo.thumbnails.small ?? ''}
+                      alt={photo.caption ?? 'Photo'}
+                      className="h-full w-full transition-transform duration-300 group-hover:scale-105"
+                    />
+                    {photo.visibility === 'private' && (
+                      <span className="absolute top-2 left-2 z-10 flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
+                        <Lock className="h-3 w-3" />
+                        Private
+                      </span>
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all duration-300 group-hover:bg-black/30">
+                      <span className="flex items-center gap-1.5 text-white text-sm font-medium opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                        <Heart className="h-4 w-4" />
+                        {photo.likeCount}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+              <div ref={sentinelRef} className="h-10" />
+              {isFetchingNextPage && (
+                <div className="flex justify-center py-6">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                </div>
+              )}
+            </>
           )}
         </>
       )}
+
+      {activeTab === 'albums' && (
+        <AlbumGrid
+          userId={userId}
+          isOwner={isOwner}
+          onCreateClick={() => setCreateAlbumOpen(true)}
+        />
+      )}
+
+      {isOwner && (
+        <CreateAlbumDialog
+          open={createAlbumOpen}
+          onOpenChange={setCreateAlbumOpen}
+        />
+      )}
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px',
+        active
+          ? 'border-primary text-primary'
+          : 'border-transparent text-muted-foreground hover:text-foreground',
+      )}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 

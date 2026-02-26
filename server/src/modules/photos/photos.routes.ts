@@ -1,8 +1,9 @@
 import multipartPlugin from '@fastify/multipart';
 import type { FastifyInstance } from 'fastify';
-import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, UpdateCaptionSchema } from 'imagiverse-shared';
+import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, PHOTO_VISIBILITY, UpdateCaptionSchema, UpdateVisibilitySchema } from 'imagiverse-shared';
+import type { PhotoVisibility } from 'imagiverse-shared';
 import sharp from 'sharp';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, tryParseAuth } from '../../middleware/auth';
 import type { PhotoIdParams } from './photos.schema';
 import {
   buildPhotoResponse,
@@ -10,6 +11,7 @@ import {
   getPhotoById,
   softDeletePhoto,
   updateCaption,
+  updateVisibility,
   uploadPhoto,
 } from './photos.service';
 
@@ -99,12 +101,22 @@ export async function photoRoutes(fastify: FastifyInstance): Promise<void> {
         caption = captionField.value;
       }
 
+      // Extract visibility from multipart fields
+      const visibilityField = data.fields.visibility;
+      let visibility: PhotoVisibility = 'public';
+      if (visibilityField && 'value' in visibilityField && typeof visibilityField.value === 'string') {
+        if (PHOTO_VISIBILITY.includes(visibilityField.value as PhotoVisibility)) {
+          visibility = visibilityField.value as PhotoVisibility;
+        }
+      }
+
       const photo = await uploadPhoto({
         userId,
         fileBuffer,
         mimeType,
         sizeBytes,
         caption,
+        visibility,
         correlationId: request.id,
       });
 
@@ -122,6 +134,15 @@ export async function photoRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(404).send({
           error: { code: 'NOT_FOUND', message: 'Photo not found' },
         });
+      }
+
+      if (photo.visibility === 'private') {
+        const authUser = tryParseAuth(request);
+        if (authUser?.id !== photo.userId) {
+          return reply.status(404).send({
+            error: { code: 'NOT_FOUND', message: 'Photo not found' },
+          });
+        }
       }
 
       const response = await buildPhotoResponse(photo);
@@ -148,6 +169,36 @@ export async function photoRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       const updated = await updateCaption(id, userId, result.data.caption ?? null);
+      if (!updated) {
+        return reply.status(404).send({
+          error: { code: 'NOT_FOUND', message: 'Photo not found' },
+        });
+      }
+
+      const response = await buildPhotoResponse(updated);
+      return reply.send(response);
+    },
+  });
+
+  // ── PATCH /photos/:id/visibility ──────────────────────────────────────────
+  fastify.patch<{ Params: PhotoIdParams }>('/photos/:id/visibility', {
+    preHandler: authenticate,
+    handler: async (request, reply) => {
+      const { id } = request.params;
+      const userId = request.user!.id;
+
+      const result = UpdateVisibilitySchema.safeParse(request.body);
+      if (!result.success) {
+        return reply
+          .status(400)
+          .send(
+            validationError(
+              result.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message }))
+            )
+          );
+      }
+
+      const updated = await updateVisibility(id, userId, result.data.visibility);
       if (!updated) {
         return reply.status(404).send({
           error: { code: 'NOT_FOUND', message: 'Photo not found' },

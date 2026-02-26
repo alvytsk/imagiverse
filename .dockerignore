@@ -1,11 +1,4 @@
-# Client source (excluded from API/Worker Docker builds — separate SPA build)
-# Keep client/package.json for pnpm workspace resolution
-client/src
-client/public
-client/index.html
-client/vite.config.ts
-client/tsconfig*.json
-client/biome.json
+# Client build artifacts and local state (source is needed for Dockerfile.client)
 client/dist
 client/node_modules
 

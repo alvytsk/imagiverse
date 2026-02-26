@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, or, type SQL, sql } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, lt, or, type SQL, sql } from 'drizzle-orm';
 import type { CommentResponse, PaginatedResponse } from 'imagiverse-shared';
 import sanitizeHtml from 'sanitize-html';
 import { db } from '../../db/index';
@@ -9,6 +9,10 @@ import { createNotification } from '../notifications/notifications.service';
 
 const DEFAULT_PAGE_LIMIT = 20;
 const MAX_PAGE_LIMIT = 50;
+const URL_PATTERN = /https?:\/\/[^\s]+/gi;
+const SPAM_URL_THRESHOLD = 3;
+const DUPLICATE_WINDOW_HOURS = 1;
+const DUPLICATE_THRESHOLD = 3;
 
 // ── Sanitization ─────────────────────────────────────────────────────────────
 
@@ -53,27 +57,69 @@ export async function getReadyPhoto(photoId: string) {
   return photo;
 }
 
+// ── Spam detection ───────────────────────────────────────────────────────────
+
+export async function detectSpam(userId: string, body: string): Promise<boolean> {
+  const urlMatches = body.match(URL_PATTERN);
+  if (urlMatches && urlMatches.length > SPAM_URL_THRESHOLD) return true;
+
+  const windowStart = new Date(Date.now() - DUPLICATE_WINDOW_HOURS * 60 * 60 * 1000);
+  const windowStartIso = windowStart.toISOString();
+  const [result] = await db
+    .select({ value: count() })
+    .from(comments)
+    .where(
+      and(
+        eq(comments.userId, userId),
+        eq(comments.body, body),
+        sql`${comments.createdAt} >= ${windowStartIso}::timestamptz`
+      )
+    );
+
+  if (result.value >= DUPLICATE_THRESHOLD) return true;
+
+  return false;
+}
+
+// ── Reply count helper ───────────────────────────────────────────────────────
+
+async function getReplyCount(commentId: string): Promise<number> {
+  const [result] = await db
+    .select({ value: count() })
+    .from(comments)
+    .where(eq(comments.parentId, commentId));
+  return result.value;
+}
+
 // ── CRUD ─────────────────────────────────────────────────────────────────────
 
 export async function createComment(
   userId: string,
   photoId: string,
-  body: string
+  body: string,
+  parentId?: string
 ): Promise<CommentResponse> {
   const sanitizedBody = sanitizeCommentBody(body);
 
+  if (parentId) {
+    const parent = await getCommentById(parentId);
+    if (!parent || parent.photoId !== photoId) {
+      throw new Error('PARENT_NOT_FOUND');
+    }
+  }
+
+  const flagged = await detectSpam(userId, sanitizedBody);
+
   const [comment] = await db
     .insert(comments)
-    .values({ userId, photoId, body: sanitizedBody })
+    .values({ userId, photoId, body: sanitizedBody, flagged, parentId: parentId ?? null })
     .returning();
 
-  // Increment denormalized counter
   await db
     .update(photos)
     .set({ commentCount: sql`${photos.commentCount} + 1` })
     .where(eq(photos.id, photoId));
 
-  // Fetch author info for response
   const [author] = await db
     .select({ username: users.username, displayName: users.displayName })
     .from(users)
@@ -87,11 +133,12 @@ export async function createComment(
     username: author.username,
     displayName: author.displayName,
     body: comment.body,
+    parentId: comment.parentId,
+    replyCount: 0,
     createdAt: comment.createdAt.toISOString(),
     updatedAt: comment.updatedAt.toISOString(),
   };
 
-  // Fire-and-forget notification to photo owner
   createCommentNotification(userId, photoId, comment.id, author).catch(() => {});
 
   return response;
@@ -127,7 +174,6 @@ export async function listComments(
 ): Promise<PaginatedResponse<CommentResponse>> {
   const pageLimit = Math.min(Math.max(limit ?? DEFAULT_PAGE_LIMIT, 1), MAX_PAGE_LIMIT);
 
-  // Build cursor condition (newest-first: created_at DESC, id DESC)
   let cursorCondition: SQL | undefined;
   if (cursor) {
     const decoded = decodeCursor(cursor);
@@ -140,15 +186,89 @@ export async function listComments(
     }
   }
 
+  // Only fetch top-level comments (parentId IS NULL)
+  const baseCondition = and(eq(comments.photoId, photoId), isNull(comments.parentId));
   const whereConditions = cursorCondition
-    ? and(eq(comments.photoId, photoId), cursorCondition)
-    : eq(comments.photoId, photoId);
+    ? and(baseCondition, cursorCondition)
+    : baseCondition;
 
   const rows = await db
     .select({
       id: comments.id,
       photoId: comments.photoId,
       userId: comments.userId,
+      parentId: comments.parentId,
+      body: comments.body,
+      createdAt: comments.createdAt,
+      updatedAt: comments.updatedAt,
+      username: users.username,
+      displayName: users.displayName,
+    })
+    .from(comments)
+    .innerJoin(users, eq(comments.userId, users.id))
+    .where(whereConditions)
+    .orderBy(desc(comments.createdAt), desc(comments.id))
+    .limit(pageLimit + 1);
+
+  const hasMore = rows.length > pageLimit;
+  const data = rows.slice(0, pageLimit);
+
+  const nextCursor =
+    hasMore && data.length > 0
+      ? encodeCursor(data[data.length - 1].createdAt, data[data.length - 1].id)
+      : null;
+
+  const dataWithReplyCounts = await Promise.all(
+    data.map(async (row) => ({
+      id: row.id,
+      photoId: row.photoId,
+      userId: row.userId,
+      username: row.username,
+      displayName: row.displayName,
+      body: row.body,
+      parentId: row.parentId,
+      replyCount: await getReplyCount(row.id),
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    }))
+  );
+
+  return {
+    data: dataWithReplyCounts,
+    pagination: { nextCursor, hasMore },
+  };
+}
+
+export async function listReplies(
+  parentId: string,
+  cursor?: string,
+  limit?: number
+): Promise<PaginatedResponse<CommentResponse>> {
+  const pageLimit = Math.min(Math.max(limit ?? DEFAULT_PAGE_LIMIT, 1), MAX_PAGE_LIMIT);
+
+  let cursorCondition: SQL | undefined;
+  if (cursor) {
+    const decoded = decodeCursor(cursor);
+    if (decoded) {
+      const cursorDate = new Date(decoded.createdAt);
+      cursorCondition = or(
+        lt(comments.createdAt, cursorDate),
+        and(eq(comments.createdAt, cursorDate), lt(comments.id, decoded.id))
+      );
+    }
+  }
+
+  const baseCondition = eq(comments.parentId, parentId);
+  const whereConditions = cursorCondition
+    ? and(baseCondition, cursorCondition)
+    : baseCondition;
+
+  const rows = await db
+    .select({
+      id: comments.id,
+      photoId: comments.photoId,
+      userId: comments.userId,
+      parentId: comments.parentId,
       body: comments.body,
       createdAt: comments.createdAt,
       updatedAt: comments.updatedAt,
@@ -177,6 +297,8 @@ export async function listComments(
       username: row.username,
       displayName: row.displayName,
       body: row.body,
+      parentId: row.parentId,
+      replyCount: 0,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     })),
@@ -199,7 +321,6 @@ export async function deleteComment(
 
   await db.delete(comments).where(eq(comments.id, commentId));
 
-  // Decrement denormalized counter (floor at 0)
   await db
     .update(photos)
     .set({ commentCount: sql`GREATEST(${photos.commentCount} - 1, 0)` })

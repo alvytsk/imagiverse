@@ -173,7 +173,9 @@ export async function getPublicProfile(userId: string): Promise<PublicUser | nul
   const [countRow] = await db
     .select({ count: sql<number>`COUNT(*)::int` })
     .from(photos)
-    .where(and(eq(photos.userId, userId), eq(photos.status, 'ready')));
+    .where(
+      and(eq(photos.userId, userId), eq(photos.status, 'ready'), eq(photos.visibility, 'public'))
+    );
 
   return {
     id: user.id,
@@ -213,7 +215,8 @@ export async function updateProfile(
 export async function getUserPhotos(
   userId: string,
   cursor?: string,
-  limit?: number
+  limit?: number,
+  requesterId?: string
 ): Promise<PaginatedResponse<PhotoResponse>> {
   const pageLimit = Math.min(Math.max(limit ?? DEFAULT_PAGE_LIMIT, 1), MAX_PAGE_LIMIT);
 
@@ -230,7 +233,12 @@ export async function getUserPhotos(
     }
   }
 
-  const baseCondition = and(eq(photos.userId, userId), eq(photos.status, 'ready'));
+  const isOwner = requesterId === userId;
+  const baseCondition = and(
+    eq(photos.userId, userId),
+    eq(photos.status, 'ready'),
+    isOwner ? undefined : eq(photos.visibility, 'public')
+  );
   const whereConditions = cursorCondition ? and(baseCondition, cursorCondition) : baseCondition;
 
   const rows = await db
@@ -239,9 +247,11 @@ export async function getUserPhotos(
       userId: photos.userId,
       caption: photos.caption,
       status: photos.status,
+      visibility: photos.visibility,
       thumbSmallKey: photos.thumbSmallKey,
       thumbMediumKey: photos.thumbMediumKey,
       thumbLargeKey: photos.thumbLargeKey,
+      blurhash: photos.blurhash,
       width: photos.width,
       height: photos.height,
       likeCount: photos.likeCount,
@@ -273,7 +283,9 @@ export async function getUserPhotos(
         userId: row.userId,
         caption: row.caption,
         status: row.status as PhotoResponse['status'],
+        visibility: row.visibility as PhotoResponse['visibility'],
         thumbnails: { small, medium, large },
+        blurhash: row.blurhash,
         width: row.width,
         height: row.height,
         likeCount: row.likeCount,

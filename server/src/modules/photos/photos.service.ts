@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
-import type { PhotoResponse } from 'imagiverse-shared';
+import type { PhotoResponse, PhotoVisibility } from 'imagiverse-shared';
 import sanitizeHtml from 'sanitize-html';
 import { db } from '../../db/index';
 import { photos } from '../../db/schema/index';
@@ -53,6 +53,7 @@ export async function uploadPhoto({
   mimeType,
   sizeBytes,
   caption,
+  visibility = 'public',
   correlationId,
 }: {
   userId: string;
@@ -60,6 +61,7 @@ export async function uploadPhoto({
   mimeType: string;
   sizeBytes: number;
   caption?: string | null;
+  visibility?: PhotoVisibility;
   correlationId?: string;
 }) {
   const photoId = crypto.randomUUID();
@@ -78,6 +80,7 @@ export async function uploadPhoto({
       userId,
       caption: sanitizedCaption,
       status: 'processing',
+      visibility,
       originalKey,
       mimeType,
       sizeBytes,
@@ -103,9 +106,11 @@ export async function buildPhotoResponse(photo: {
   userId: string;
   caption: string | null;
   status: string;
+  visibility: string;
   thumbSmallKey: string | null;
   thumbMediumKey: string | null;
   thumbLargeKey: string | null;
+  blurhash: string | null;
   width: number | null;
   height: number | null;
   likeCount: number;
@@ -126,7 +131,9 @@ export async function buildPhotoResponse(photo: {
     userId: photo.userId,
     caption: photo.caption,
     status: photo.status as PhotoResponse['status'],
+    visibility: photo.visibility as PhotoResponse['visibility'],
     thumbnails: { small, medium, large },
+    blurhash: photo.blurhash,
     width: photo.width,
     height: photo.height,
     likeCount: photo.likeCount,
@@ -142,6 +149,20 @@ export async function updateCaption(photoId: string, userId: string, caption: st
   const [updated] = await db
     .update(photos)
     .set({ caption: sanitizedCaption, updatedAt: new Date() })
+    .where(and(eq(photos.id, photoId), eq(photos.userId, userId)))
+    .returning();
+
+  return updated ?? null;
+}
+
+export async function updateVisibility(
+  photoId: string,
+  userId: string,
+  visibility: 'public' | 'private',
+) {
+  const [updated] = await db
+    .update(photos)
+    .set({ visibility, updatedAt: new Date() })
     .where(and(eq(photos.id, photoId), eq(photos.userId, userId)))
     .returning();
 

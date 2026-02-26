@@ -5,6 +5,7 @@ export const CreateCommentSchema = z.object({
     .string()
     .min(1, 'Comment body is required')
     .max(2000, 'Comment must be at most 2000 characters'),
+  parentId: z.string().uuid().optional(),
 });
 
 export type CreateCommentInput = z.infer<typeof CreateCommentSchema>;
@@ -16,6 +17,8 @@ export interface CommentResponse {
   username: string;
   displayName: string;
   body: string;
+  parentId: string | null;
+  replyCount: number;
   createdAt: string;
   updatedAt: string;
 }

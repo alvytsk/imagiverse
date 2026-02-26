@@ -16,6 +16,33 @@
 
 services:
   # ========================================================================
+  # Client — nginx serves the React SPA and proxies /api to Fastify
+  # ========================================================================
+  client:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.client
+      target: production
+    container_name: imagiverse-client
+
+    restart: unless-stopped
+
+    ports:
+      - "80:80"
+
+    depends_on:
+      - api
+
+    networks:
+      - imagiverse-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ========================================================================
   # Fastify API Server
   # ========================================================================
   api:
@@ -53,8 +80,9 @@ services:
       API_HOST: "0.0.0.0"
 
     ports:
-      - "3000:3000"
       - "9229:9229"   # Node.js debug port
+    expose:
+      - "3000"
 
     volumes:
       - ../server/src:/app/server/src:ro

@@ -25,6 +25,7 @@
     "@tailwindcss/vite": "^4.2.0",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-router": "^1.162.4",
+    "blurhash": "^2.0.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "imagiverse-shared": "workspace:*",
@@ -39,6 +40,7 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@axe-core/react": "^4.11.1",
     "@tanstack/router-devtools": "^1.162.4",
     "@tanstack/router-plugin": "^1.162.4",
     "@types/node": "^25.3.0",

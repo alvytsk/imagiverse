@@ -1,3 +1,5 @@
+export * from './schemas/admin';
+export * from './schemas/albums';
 export * from './schemas/auth';
 export * from './schemas/comments';
 export * from './schemas/feed';

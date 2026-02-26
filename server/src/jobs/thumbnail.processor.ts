@@ -1,3 +1,4 @@
+import { encode } from 'blurhash';
 import type { Job } from 'bullmq';
 import { Worker } from 'bullmq';
 import { eq } from 'drizzle-orm';
@@ -65,15 +66,26 @@ export async function processThumbnailJob(job: Job<ThumbnailJobData>): Promise<v
     thumbnailResults.map((thumb) => uploadObject(thumb.key, thumb.buffer, 'image/webp'))
   );
 
-  // 5. Update DB row with thumbnail keys, dimensions, and status
+  // 5. Generate blurhash from small thumbnail
+  const smallThumb = thumbnailResults.find((t) => t.name === 'small')!;
+  const blurhashSize = 32;
+  const { data: pixels, info } = await sharp(smallThumb.buffer)
+    .resize(blurhashSize, blurhashSize, { fit: 'fill' })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const blurhash = encode(new Uint8ClampedArray(pixels), info.width, info.height, 4, 3);
+
+  // 6. Update DB row with thumbnail keys, dimensions, blurhash, and status
   await db
     .update(photos)
     .set({
-      thumbSmallKey: thumbnailResults.find((t) => t.name === 'small')!.key,
+      thumbSmallKey: smallThumb.key,
       thumbMediumKey: thumbnailResults.find((t) => t.name === 'medium')!.key,
       thumbLargeKey: thumbnailResults.find((t) => t.name === 'large')!.key,
       width: metadata.width,
       height: metadata.height,
+      blurhash,
       status: 'ready',
       updatedAt: new Date(),
     })

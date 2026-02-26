@@ -1,6 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from 'imagiverse-shared';
-import { ImagePlus, Upload, X } from 'lucide-react';
+import type { PhotoVisibility } from 'imagiverse-shared';
+import { Eye, EyeOff, ImagePlus, Upload, X } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -8,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiClientError } from '@/lib/api-client';
+import { resizeImageForUpload } from '@/lib/image-resize';
 import { useAuthStore } from '@/stores/auth-store';
 
 export function UploadPage() {
@@ -15,6 +17,8 @@ export function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
+  const [visibility, setVisibility] = useState<PhotoVisibility>('public');
+  const [isResizing, setIsResizing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -60,14 +64,26 @@ export function UploadPage() {
 
   const handleUpload = async () => {
     if (!file) return;
+
+    setIsResizing(true);
+    let processedFile: File;
+    try {
+      processedFile = await resizeImageForUpload(file);
+    } catch {
+      processedFile = file;
+    } finally {
+      setIsResizing(false);
+    }
+
     setIsUploading(true);
 
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', processedFile);
       if (caption.trim()) {
         formData.append('caption', caption.trim());
       }
+      formData.append('visibility', visibility);
 
       const token = useAuthStore.getState().accessToken;
       const res = await fetch('/api/photos', {
@@ -91,7 +107,7 @@ export function UploadPage() {
       navigate({
         to: '/photos/$photoId',
         params: { photoId: data.id },
-        state: { localPreview: preview },
+        state: { localPreview: preview } as Record<string, unknown>,
       });
     } catch (err) {
       if (err instanceof ApiClientError) {
@@ -120,6 +136,15 @@ export function UploadPage() {
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onClick={() => inputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  inputRef.current?.click();
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label="Select photo to upload"
               className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-12 transition-all duration-200 cursor-pointer ${
                 dragActive
                   ? 'border-primary bg-primary/10 scale-[1.02]'
@@ -166,6 +191,7 @@ export function UploadPage() {
                 size="icon"
                 className="absolute top-2 right-2"
                 onClick={removeFile}
+                aria-label="Remove selected photo"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -189,14 +215,42 @@ export function UploadPage() {
             </p>
           </div>
 
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant={visibility === 'public' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setVisibility('public')}
+              className="flex-1"
+            >
+              <Eye className="h-4 w-4 mr-1.5" />
+              Public
+            </Button>
+            <Button
+              type="button"
+              variant={visibility === 'private' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setVisibility('private')}
+              className="flex-1"
+            >
+              <EyeOff className="h-4 w-4 mr-1.5" />
+              Private
+            </Button>
+          </div>
+          {visibility === 'private' && (
+            <p className="text-xs text-muted-foreground">
+              This photo will only be visible to you.
+            </p>
+          )}
+
           <Button
             className="w-full"
             size="lg"
             onClick={handleUpload}
-            disabled={!file || isUploading}
-            isLoading={isUploading}
+            disabled={!file || isResizing || isUploading}
+            isLoading={isResizing || isUploading}
           >
-            Upload photo
+            {isResizing ? 'Resizing...' : 'Upload photo'}
           </Button>
         </CardContent>
       </Card>

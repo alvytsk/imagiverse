@@ -71,7 +71,7 @@ export async function getFeed(
     }
   }
 
-  const baseCondition = eq(photos.status, 'ready');
+  const baseCondition = and(eq(photos.status, 'ready'), eq(photos.visibility, 'public'));
   const whereConditions = cursorCondition ? and(baseCondition, cursorCondition) : baseCondition;
 
   const rows = await db
@@ -82,6 +82,7 @@ export async function getFeed(
       thumbSmallKey: photos.thumbSmallKey,
       thumbMediumKey: photos.thumbMediumKey,
       thumbLargeKey: photos.thumbLargeKey,
+      blurhash: photos.blurhash,
       width: photos.width,
       height: photos.height,
       likeCount: photos.likeCount,
@@ -119,6 +120,7 @@ export async function getFeed(
         userId: row.userId,
         caption: row.caption,
         thumbnails: { small, medium, large },
+        blurhash: row.blurhash,
         width: row.width,
         height: row.height,
         likeCount: row.likeCount,

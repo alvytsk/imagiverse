@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { Toaster } from 'sonner';
 
 import { ErrorBoundary } from '@/components/error-boundary';
+import { Footer } from '@/components/layout/footer';
 import { Navbar } from '@/components/layout/navbar';
 import { queryClient } from '@/lib/query-client';
 import { useResolvedTheme } from '@/stores/theme-store';
@@ -18,9 +19,9 @@ function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
-        <div className="min-h-screen bg-background">
+        <div className="flex min-h-screen flex-col bg-background">
           <Navbar />
-          <main className="container mx-auto px-4 py-6">
+          <main className="container mx-auto flex-1 px-4 py-6 pb-16">
             <Suspense
               fallback={
                 <div className="flex justify-center py-20">
@@ -31,6 +32,7 @@ function RootLayout() {
               <Outlet />
             </Suspense>
           </main>
+          <Footer />
         </div>
       </ErrorBoundary>
       <Toaster

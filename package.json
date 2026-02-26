@@ -22,7 +22,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "seed": "pnpm --filter imagiverse-server db:seed",
-    "docker:build": "docker compose -f docker/docker-compose.yml build api worker",
+    "docker:build": "docker compose -f docker/docker-compose.yml build api worker client",
     "infra:up": "docker compose -f docker/docker-compose.yml up -d postgres redis garage",
     "infra:down": "docker compose -f docker/docker-compose.yml down"
   },

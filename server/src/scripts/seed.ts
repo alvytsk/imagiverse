@@ -41,7 +41,7 @@ async function seed() {
   try {
     // ── Truncate ──────────────────────────────────────────────────────────────
     console.log('Truncating existing data...');
-    await db.execute(sql`TRUNCATE feed_scores, comments, likes, photos, users CASCADE`);
+    await db.execute(sql`TRUNCATE reports, feed_scores, comments, likes, photos, users CASCADE`);
 
     // ── Users ─────────────────────────────────────────────────────────────────
     console.log(`Creating ${USER_COUNT} users...`);
@@ -57,6 +57,7 @@ async function seed() {
         city: faker.location.city(),
         bio: faker.lorem.sentence(),
         passwordHash,
+        role: i === 0 ? 'admin' : 'user',
       };
     });
 
@@ -172,7 +173,7 @@ async function seed() {
     `);
 
     console.log('\nSeed complete!');
-    console.log(`  ${USER_COUNT} users (login: user1@example.com / ${SEED_PASSWORD})`);
+    console.log(`  ${USER_COUNT} users (login: user1@example.com / ${SEED_PASSWORD}; user1 is admin)`);
     console.log(`  ${PHOTO_COUNT} photos`);
     console.log(`  ${likeValues.length} likes`);
     console.log(`  ${COMMENT_COUNT} comments`);
