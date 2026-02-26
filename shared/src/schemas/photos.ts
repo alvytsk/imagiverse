@@ -7,6 +7,12 @@ export const UpdateCaptionSchema = z.object({
 
 export type UpdateCaptionInput = z.infer<typeof UpdateCaptionSchema>;
 
+export const UpdateVisibilitySchema = z.object({
+  visibility: z.enum(['public', 'private']),
+});
+
+export type UpdateVisibilityInput = z.infer<typeof UpdateVisibilitySchema>;
+
 export const PHOTO_VISIBILITY = ['public', 'private'] as const;
 export type PhotoVisibility = (typeof PHOTO_VISIBILITY)[number];
 

@@ -9,6 +9,7 @@ import type {
   CreateCommentInput,
   PaginatedResponse,
   PhotoResponse,
+  PhotoVisibility,
 } from 'imagiverse-shared';
 import { toast } from 'sonner';
 
@@ -166,6 +167,41 @@ export function useReportPhoto(photoId: string) {
       } else {
         toast.error('Failed to submit report');
       }
+    },
+  });
+}
+
+export function useUpdateVisibility(photoId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (visibility: PhotoVisibility) =>
+      api.patch<PhotoResponse>(`/photos/${photoId}/visibility`, { visibility }),
+    onMutate: async (visibility) => {
+      await queryClient.cancelQueries({ queryKey: ['photos', photoId] });
+      const previous = queryClient.getQueryData<PhotoResponse>(['photos', photoId]);
+      if (previous) {
+        queryClient.setQueryData<PhotoResponse>(['photos', photoId], {
+          ...previous,
+          visibility,
+        });
+      }
+      return { previous };
+    },
+    onError: (err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['photos', photoId], context.previous);
+      }
+      if (err instanceof ApiClientError) {
+        toast.error(err.message);
+      } else {
+        toast.error('Failed to update visibility');
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['photos', photoId] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
     },
   });
 }

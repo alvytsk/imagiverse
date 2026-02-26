@@ -155,6 +155,20 @@ export async function updateCaption(photoId: string, userId: string, caption: st
   return updated ?? null;
 }
 
+export async function updateVisibility(
+  photoId: string,
+  userId: string,
+  visibility: 'public' | 'private',
+) {
+  const [updated] = await db
+    .update(photos)
+    .set({ visibility, updatedAt: new Date() })
+    .where(and(eq(photos.id, photoId), eq(photos.userId, userId)))
+    .returning();
+
+  return updated ?? null;
+}
+
 export async function softDeletePhoto(photoId: string, userId: string): Promise<boolean> {
   const [updated] = await db
     .update(photos)

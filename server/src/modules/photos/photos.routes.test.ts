@@ -47,6 +47,7 @@ const mockService = vi.hoisted(() => ({
   getPhotoById: vi.fn(),
   buildPhotoResponse: vi.fn(),
   updateCaption: vi.fn(),
+  updateVisibility: vi.fn(),
   softDeletePhoto: vi.fn(),
   checkUploadRateLimit: vi.fn(),
   sanitizeCaption: vi.fn((t: string) => t),
@@ -149,6 +150,7 @@ function setupDefaultMocks() {
   mockService.getPhotoById.mockResolvedValue(TEST_PHOTO);
   mockService.buildPhotoResponse.mockResolvedValue(TEST_PHOTO_RESPONSE);
   mockService.updateCaption.mockResolvedValue(TEST_PHOTO);
+  mockService.updateVisibility.mockResolvedValue(TEST_PHOTO);
   mockService.softDeletePhoto.mockResolvedValue(true);
 }
 
@@ -360,6 +362,85 @@ describe('PATCH /api/photos/:id', () => {
       url: '/api/photos/photo-uuid-1',
       headers: { authorization: `Bearer ${generateAuthToken()}` },
       payload: { caption: 'x'.repeat(2001) },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('VALIDATION_ERROR');
+  });
+});
+
+// ── PATCH /api/photos/:id/visibility ─────────────────────────────────────────
+
+describe('PATCH /api/photos/:id/visibility', () => {
+  let app: Awaited<ReturnType<typeof buildApp>>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    setupDefaultMocks();
+    app = await buildApp();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it('returns 200 with updated photo on valid visibility change', async () => {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/photos/photo-uuid-1/visibility',
+      headers: { authorization: `Bearer ${generateAuthToken()}` },
+      payload: { visibility: 'private' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockService.updateVisibility).toHaveBeenCalledWith(
+      'photo-uuid-1',
+      'user-uuid-1',
+      'private'
+    );
+  });
+
+  it('returns 401 without auth token', async () => {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/photos/photo-uuid-1/visibility',
+      payload: { visibility: 'private' },
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('returns 404 when photo is not found or not owned', async () => {
+    mockService.updateVisibility.mockResolvedValue(null);
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/photos/photo-uuid-1/visibility',
+      headers: { authorization: `Bearer ${generateAuthToken()}` },
+      payload: { visibility: 'private' },
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('returns 400 for invalid visibility value', async () => {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/photos/photo-uuid-1/visibility',
+      headers: { authorization: `Bearer ${generateAuthToken()}` },
+      payload: { visibility: 'unlisted' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('returns 400 when visibility field is missing', async () => {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/photos/photo-uuid-1/visibility',
+      headers: { authorization: `Bearer ${generateAuthToken()}` },
+      payload: {},
     });
 
     expect(response.statusCode).toBe(400);

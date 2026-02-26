@@ -1,6 +1,6 @@
 import { Link, useParams, useRouter, useRouterState } from '@tanstack/react-router';
 import type { CommentResponse } from 'imagiverse-shared';
-import { AlertTriangle, ChevronDown, ChevronUp, FolderPlus, Heart, Loader2, Lock, Maximize2, MessageCircle, Reply, SendHorizontal, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Eye, EyeOff, FolderPlus, Heart, Loader2, Lock, Maximize2, MessageCircle, Reply, SendHorizontal, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -28,6 +28,7 @@ import {
   useLikePhoto,
   usePhoto,
   usePhotoComments,
+  useUpdateVisibility,
 } from '@/hooks/use-photo';
 import { useUser } from '@/hooks/use-users';
 import { timeAgo } from '@/lib/utils';
@@ -50,6 +51,7 @@ export function PhotoDetailPage() {
   const lightboxCloseRef = useRef<HTMLButtonElement>(null);
   const lightboxTriggerRef = useRef<HTMLElement | null>(null);
   const deletePhoto = useDeletePhoto(photoId);
+  const updateVisibility = useUpdateVisibility(photoId);
   const router = useRouter();
 
   useEffect(() => {
@@ -121,9 +123,9 @@ export function PhotoDetailPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="grid gap-6 md:grid-cols-[1fr_380px] md:max-h-[85vh]">
+      <div className="grid gap-6 md:grid-cols-[1fr_380px]">
         <div
-          className={`overflow-hidden rounded-2xl bg-muted/20 dark:bg-black relative flex items-center justify-center md:min-h-0 ${!isProcessing && imageSrc ? 'cursor-zoom-in group' : ''}`}
+          className={`overflow-hidden rounded-2xl bg-muted/20 dark:bg-black relative flex items-center justify-center md:self-start ${!isProcessing && imageSrc ? 'cursor-zoom-in group' : ''}`}
           onClick={(e) => {
             if (!isProcessing && imageSrc) {
               lightboxTriggerRef.current = e.currentTarget as HTMLElement;
@@ -161,7 +163,7 @@ export function PhotoDetailPage() {
           )}
         </div>
 
-        <div className="flex flex-col md:min-h-0">
+        <div className="flex flex-col md:max-h-[85vh] md:min-h-0 md:overflow-hidden">
           <div className="flex items-center gap-3 pb-4">
             <Link to="/users/$userId" params={{ userId: photo.userId }}>
               <Avatar className="h-10 w-10">
@@ -193,7 +195,7 @@ export function PhotoDetailPage() {
             <p className="text-sm mb-4">{photo.caption}</p>
           )}
 
-          <div className="flex items-center gap-4 pb-4">
+          <div className="flex items-center gap-4 pb-2">
             <Button
               variant="ghost"
               size="sm"
@@ -211,35 +213,60 @@ export function PhotoDetailPage() {
               <MessageCircle className="h-5 w-5" />
               {photo.commentCount}
             </span>
-            {isAuthenticated && currentUserId === photo.userId && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setAddToAlbumOpen(true)}
-                  aria-label="Add to album"
-                >
-                  <FolderPlus className="h-5 w-5 mr-1" />
-                  Album
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive ml-auto"
-                  onClick={() => setDeleteConfirmOpen(true)}
-                  aria-label="Delete photo"
-                >
-                  <Trash2 className="h-5 w-5 mr-1" />
-                  Delete
-                </Button>
-              </>
-            )}
             {isAuthenticated && photo.userId !== currentUserId && (
               <div className="ml-auto">
                 <ReportDialog photoId={photoId} />
               </div>
             )}
           </div>
+
+          {isAuthenticated && currentUserId === photo.userId && (
+            <div className="flex items-center gap-1 pb-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const next = photo.visibility === 'public' ? 'private' : 'public';
+                  updateVisibility.mutate(next, {
+                    onSuccess: () => {
+                      toast.success(
+                        next === 'private'
+                          ? 'Photo is now private'
+                          : 'Photo is now public',
+                      );
+                    },
+                  });
+                }}
+                disabled={updateVisibility.isPending}
+                aria-label={photo.visibility === 'public' ? 'Make private' : 'Make public'}
+              >
+                {photo.visibility === 'public' ? (
+                  <><EyeOff className="h-4 w-4 mr-1.5" />Make private</>
+                ) : (
+                  <><Eye className="h-4 w-4 mr-1.5" />Make public</>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAddToAlbumOpen(true)}
+                aria-label="Add to album"
+              >
+                <FolderPlus className="h-4 w-4 mr-1.5" />
+                Album
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:text-destructive ml-auto"
+                onClick={() => setDeleteConfirmOpen(true)}
+                aria-label="Delete photo"
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                Delete
+              </Button>
+            </div>
+          )}
 
           <Separator />
 
@@ -351,7 +378,7 @@ function CommentsSection({ photoId }: { photoId: string }) {
 
   return (
     <div className="flex flex-col flex-1 pt-4 md:min-h-0">
-      <div className="flex-1 space-y-3 overflow-y-auto max-h-[400px] md:max-h-none min-h-0 mb-4">
+      <div className="flex-1 space-y-3 overflow-y-auto max-h-[400px] md:max-h-full min-h-0 mb-4">
         {isLoading && (
           <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
