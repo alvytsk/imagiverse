@@ -1,3 +1,5 @@
+name: imagiverse
+
 # ============================================================================
 # Local Development Environment
 # Services: PostgreSQL, Redis, Garage v2 (S3-compatible)
