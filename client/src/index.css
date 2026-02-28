@@ -106,19 +106,43 @@
       "Noto Color Emoji";
   }
 
-  main > * {
-    animation: fade-in 0.3s ease-out;
+  /* Only use the CSS fade-in on browsers without View Transitions support.
+     When View Transitions are available the API handles page transitions and
+     this animation would conflict (new DOM starts at opacity 0 which gets
+     captured as the "new" snapshot → blink). */
+  @supports not (view-transition-name: none) {
+    main > * {
+      animation: fade-in 0.3s ease-out;
+    }
   }
 }
 
 /* ── View Transitions API ────────────────────────────────────────────────── */
 
+/* Prevent the transparent "hole" artifact: when a named element (e.g. a photo)
+   is extracted from the root snapshot, the crossfade of old/new root layers
+   exposes the bare page background behind the morphing element.
+   `isolation: auto` + `mix-blend-mode: normal` composites the two root layers
+   against the page background naturally instead of creating an isolated
+   stacking context with transparent gaps. */
+::view-transition-image-pair(root) {
+  isolation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  mix-blend-mode: normal;
+  animation-duration: 180ms;
+}
+
 ::view-transition-old(root) {
-  animation: vt-fade-out 150ms ease-out;
+  animation-name: vt-fade-out;
+  animation-timing-function: ease-out;
 }
 
 ::view-transition-new(root) {
-  animation: vt-fade-in 200ms ease-in;
+  animation-name: vt-fade-in;
+  animation-timing-function: ease-in;
 }
 
 @keyframes vt-fade-out {
