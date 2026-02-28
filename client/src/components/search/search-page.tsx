@@ -1,9 +1,10 @@
-import { Link, useNavigate, useSearch } from '@tanstack/react-router';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import type { PublicUser } from 'imagiverse-shared';
 import { MapPin, Search, Users } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { TransitionLink } from '@/components/ui/transition-link';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSearchUsers } from '@/hooks/use-users';
@@ -100,12 +101,12 @@ export function SearchPage() {
 
 function UserCard({ user }: { user: PublicUser }) {
   return (
-    <Link
+    <TransitionLink
       to="/users/$userId"
       params={{ userId: user.id }}
       className="flex items-center gap-4 rounded-2xl border p-4 transition-all duration-200 hover:bg-accent hover:-translate-y-0.5 hover:shadow-md"
     >
-      <Avatar className="h-12 w-12">
+      <Avatar className="h-12 w-12" style={{ viewTransitionName: `avatar-${user.id}` }}>
         {user.avatarUrl ? (
           <AvatarImage src={user.avatarUrl} alt={user.displayName} />
         ) : null}
@@ -128,6 +129,6 @@ function UserCard({ user }: { user: PublicUser }) {
       <span className="text-sm text-muted-foreground">
         {user.photoCount} photos
       </span>
-    </Link>
+    </TransitionLink>
   );
 }

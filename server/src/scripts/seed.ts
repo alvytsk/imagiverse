@@ -24,7 +24,7 @@ import sanitizeHtml from 'sanitize-html';
 import { env } from '../config/env';
 import * as schema from '../db/schema/index';
 
-const { users, photos, likes, comments, feedScores } = schema;
+const { users, photos, likes, comments, feedScores, notifications, albums, albumPhotos } = schema;
 
 const SEED_PASSWORD = 'Password1!';
 const USER_COUNT = 100;
@@ -32,6 +32,37 @@ const PHOTO_COUNT = 1000;
 const LIKE_COUNT = 5000;
 const COMMENT_COUNT = 2000;
 const BCRYPT_ROUNDS = 4; // Fast for seeding
+const ALBUM_COUNT = 50;
+
+const CAMERA_MAKES = ['Canon', 'Nikon', 'Sony', 'Fujifilm', 'Panasonic', 'Olympus', 'Leica'];
+const CAMERA_MODELS: Record<string, string[]> = {
+  Canon: ['EOS R5', 'EOS R6', 'EOS 5D Mark IV', 'EOS 90D'],
+  Nikon: ['Z6 III', 'Z8', 'D850', 'Z fc'],
+  Sony: ['A7 IV', 'A7R V', 'A6700', 'A1'],
+  Fujifilm: ['X-T5', 'X-H2', 'X100VI', 'GFX 100S'],
+  Panasonic: ['Lumix S5 II', 'Lumix GH6', 'Lumix G9 II'],
+  Olympus: ['OM-1', 'E-M1 Mark III', 'PEN E-P7'],
+  Leica: ['Q3', 'M11', 'SL2-S'],
+};
+
+function generateExifData() {
+  // ~70% of photos have EXIF data
+  if (Math.random() > 0.7) return null;
+
+  const make = CAMERA_MAKES[Math.floor(Math.random() * CAMERA_MAKES.length)];
+  const models = CAMERA_MODELS[make];
+  const model = models[Math.floor(Math.random() * models.length)];
+
+  return {
+    make,
+    model,
+    exposureTime: faker.helpers.arrayElement(['1/30', '1/60', '1/125', '1/250', '1/500', '1/1000', '1/2000']),
+    fNumber: faker.helpers.arrayElement([1.4, 1.8, 2.0, 2.8, 4.0, 5.6, 8.0, 11.0]),
+    iso: faker.helpers.arrayElement([100, 200, 400, 800, 1600, 3200, 6400]),
+    focalLength: faker.helpers.arrayElement([24, 35, 50, 85, 100, 135, 200]),
+    dateTime: faker.date.recent({ days: 30 }).toISOString(),
+  };
+}
 
 async function seed() {
   console.log('Connecting to database...');
@@ -41,7 +72,7 @@ async function seed() {
   try {
     // ── Truncate ──────────────────────────────────────────────────────────────
     console.log('Truncating existing data...');
-    await db.execute(sql`TRUNCATE reports, feed_scores, comments, likes, photos, users CASCADE`);
+    await db.execute(sql`TRUNCATE notifications, album_photos, albums, reports, feed_scores, comments, likes, photos, users CASCADE`);
 
     // ── Users ─────────────────────────────────────────────────────────────────
     console.log(`Creating ${USER_COUNT} users...`);
@@ -84,6 +115,8 @@ async function seed() {
         height: faker.number.int({ min: 600, max: 3000 }),
         mimeType: 'image/jpeg',
         sizeBytes: faker.number.int({ min: 50000, max: 5000000 }),
+        blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj', // static placeholder blurhash
+        exifData: generateExifData(),
         // Spread creation dates over the last 30 days
         createdAt: faker.date.recent({ days: 30 }),
       };
@@ -172,6 +205,62 @@ async function seed() {
         updated_at = EXCLUDED.updated_at
     `);
 
+    // ── Albums ────────────────────────────────────────────────────────────────
+    console.log(`Creating ${ALBUM_COUNT} albums...`);
+    const albumValues = Array.from({ length: ALBUM_COUNT }, () => ({
+      userId: userIds[Math.floor(Math.random() * userIds.length)],
+      name: faker.lorem.words({ min: 1, max: 3 }),
+      description: faker.lorem.sentence(),
+      createdAt: faker.date.recent({ days: 30 }),
+    }));
+
+    const insertedAlbums = await db.insert(albums).values(albumValues).returning({ id: albums.id, userId: albums.userId });
+    console.log(`  Created ${insertedAlbums.length} albums.`);
+
+    // Add 3-10 random photos to each album
+    const albumPhotoValues: Array<{ albumId: string; photoId: string }> = [];
+    for (const album of insertedAlbums) {
+      const count = faker.number.int({ min: 3, max: 10 });
+      const shuffled = [...photoIds].sort(() => Math.random() - 0.5);
+      for (let i = 0; i < count; i++) {
+        albumPhotoValues.push({ albumId: album.id, photoId: shuffled[i] });
+      }
+    }
+
+    for (let i = 0; i < albumPhotoValues.length; i += BATCH_SIZE) {
+      const batch = albumPhotoValues.slice(i, i + BATCH_SIZE);
+      await db.insert(albumPhotos).values(batch);
+    }
+    console.log(`  Added ${albumPhotoValues.length} photos to albums.`);
+
+    // ── Notifications ────────────────────────────────────────────────────────
+    console.log('Creating sample notifications...');
+    const notifValues: Array<{ userId: string; type: string; payload: unknown; read: boolean; createdAt: Date }> = [];
+
+    // Generate like notifications for the first 200 likes
+    for (let i = 0; i < Math.min(200, likeValues.length); i++) {
+      const like = likeValues[i];
+      // Find photo owner
+      const photo = photoValues.find((p) => p.id === like.photoId);
+      if (photo && photo.userId !== like.userId) {
+        notifValues.push({
+          userId: photo.userId,
+          type: 'like',
+          payload: { photoId: like.photoId, actorId: like.userId },
+          read: Math.random() > 0.3,
+          createdAt: faker.date.recent({ days: 7 }),
+        });
+      }
+    }
+
+    if (notifValues.length > 0) {
+      for (let i = 0; i < notifValues.length; i += BATCH_SIZE) {
+        const batch = notifValues.slice(i, i + BATCH_SIZE);
+        await db.insert(notifications).values(batch);
+      }
+    }
+    console.log(`  Created ${notifValues.length} notifications.`);
+
     console.log('\nSeed complete!');
     console.log(
       `  ${USER_COUNT} users (login: user1@example.com / ${SEED_PASSWORD}; user1 is admin)`
@@ -179,6 +268,8 @@ async function seed() {
     console.log(`  ${PHOTO_COUNT} photos`);
     console.log(`  ${likeValues.length} likes`);
     console.log(`  ${COMMENT_COUNT} comments`);
+    console.log(`  ${insertedAlbums.length} albums`);
+    console.log(`  ${notifValues.length} notifications`);
     console.log('  Feed scores recalculated');
   } finally {
     await queryClient.end();

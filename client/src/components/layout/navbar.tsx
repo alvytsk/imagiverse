@@ -1,4 +1,4 @@
-import { Link, useNavigate } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { Camera, LogOut, Search, Shield, Upload, User } from 'lucide-react';
 import { useCallback } from 'react';
 
@@ -6,6 +6,7 @@ import { NotificationBell } from '@/components/notifications/notification-bell';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { TransitionLink } from '@/components/ui/transition-link';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,20 +29,20 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/40 bg-card/80 shadow-[0_1px_3px_0_oklch(0_0_0/0.06),0_4px_12px_0_oklch(0_0_0/0.04)] backdrop-blur-xl dark:shadow-[0_1px_3px_0_oklch(0_0_0/0.2),0_4px_12px_0_oklch(0_0_0/0.15)]">
       <div className="container mx-auto flex h-16 items-center gap-4 px-4">
-        <Link to="/" className="flex items-center gap-2 font-extrabold text-lg drop-shadow-[0_1px_2px_oklch(0_0_0/0.15)]">
+        <TransitionLink to="/" className="flex items-center gap-2 font-extrabold text-lg drop-shadow-[0_1px_2px_oklch(0_0_0/0.15)]">
           <Camera className="h-6 w-6 text-primary" />
           <span className="hidden sm:inline bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
             Imagiverse
           </span>
-        </Link>
+        </TransitionLink>
 
         <div className="flex-1" />
 
         <Button variant="ghost" size="icon" asChild>
-          <Link to="/search" search={{ q: '' }}>
+          <TransitionLink to="/search" search={{ q: '' }}>
             <Search className="h-5 w-5" />
             <span className="sr-only">Search</span>
-          </Link>
+          </TransitionLink>
         </Button>
 
         <ThemeToggle />
@@ -49,10 +50,10 @@ export function Navbar() {
         {isAuthenticated ? (
           <>
             <Button variant="default" size="sm" asChild>
-              <Link to="/upload" className="gap-2">
+              <TransitionLink to="/upload" className="gap-2">
                 <Upload className="h-4 w-4" />
                 <span className="hidden sm:inline">Upload</span>
-              </Link>
+              </TransitionLink>
             </Button>
 
             <NotificationBell />
@@ -118,10 +119,10 @@ export function Navbar() {
         ) : (
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild>
-              <Link to="/login">Log in</Link>
+              <TransitionLink to="/login">Log in</TransitionLink>
             </Button>
             <Button size="sm" asChild>
-              <Link to="/register">Sign up</Link>
+              <TransitionLink to="/register">Sign up</TransitionLink>
             </Button>
           </div>
         )}

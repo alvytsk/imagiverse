@@ -46,13 +46,13 @@ export function BlurhashImage({
   }, [blurhash]);
 
   return (
-    <div className={cn('relative overflow-hidden', className)} style={style}>
+    <div className={cn('relative overflow-hidden bg-muted', className)} style={style}>
       {blurhash && (
         <canvas
           ref={canvasRef}
           className={cn(
-            'absolute inset-0 h-full w-full object-cover transition-opacity duration-300',
-            loaded ? 'opacity-0' : 'opacity-100',
+            'absolute inset-0 h-full w-full object-cover',
+            loaded && 'hidden',
           )}
           aria-hidden
         />
@@ -63,8 +63,8 @@ export function BlurhashImage({
         loading={loading}
         onLoad={() => setLoaded(true)}
         className={cn(
-          'absolute inset-0 h-full w-full object-cover transition-opacity duration-300',
-          loaded ? 'opacity-100' : 'opacity-0',
+          'absolute inset-0 h-full w-full object-cover',
+          !loaded && 'invisible',
         )}
       />
     </div>

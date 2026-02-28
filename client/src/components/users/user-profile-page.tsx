@@ -1,4 +1,4 @@
-import { Link, useParams } from '@tanstack/react-router';
+import { useParams } from '@tanstack/react-router';
 import { Camera, Heart, ImageIcon, Lock, MapPin } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -6,6 +6,7 @@ import { AlbumGrid } from '@/components/albums/album-grid';
 import { CreateAlbumDialog } from '@/components/albums/create-album-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { BlurhashImage } from '@/components/ui/blurhash-image';
+import { TransitionLink } from '@/components/ui/transition-link';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUser, useUserPhotos } from '@/hooks/use-users';
 import { cn } from '@/lib/utils';
@@ -72,7 +73,7 @@ export function UserProfilePage() {
       <div className="relative mb-16">
         <div className="h-32 rounded-2xl bg-gradient-to-r from-primary/20 via-primary/10 to-accent/20" />
         <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 sm:left-8 sm:translate-x-0">
-          <Avatar className="h-28 w-28 ring-4 ring-background">
+          <Avatar className="h-28 w-28 ring-4 ring-background" style={{ viewTransitionName: `avatar-${userId}` }}>
             {user.avatarUrl ? (
               <AvatarImage src={user.avatarUrl} alt={user.displayName} />
             ) : null}
@@ -137,7 +138,7 @@ export function UserProfilePage() {
             <>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                 {photos.map((photo) => (
-                  <Link
+                  <TransitionLink
                     key={photo.id}
                     to="/photos/$photoId"
                     params={{ photoId: photo.id }}
@@ -148,6 +149,7 @@ export function UserProfilePage() {
                       src={photo.thumbnails.medium ?? photo.thumbnails.small ?? ''}
                       alt={photo.caption ?? 'Photo'}
                       className="h-full w-full transition-transform duration-300 group-hover:scale-105"
+                      style={{ viewTransitionName: `photo-${photo.id}` }}
                     />
                     {photo.visibility === 'private' && (
                       <span className="absolute top-2 left-2 z-10 flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
@@ -161,7 +163,7 @@ export function UserProfilePage() {
                         {photo.likeCount}
                       </span>
                     </div>
-                  </Link>
+                  </TransitionLink>
                 ))}
               </div>
               <div ref={sentinelRef} className="h-10" />

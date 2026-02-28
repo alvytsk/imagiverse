@@ -121,12 +121,6 @@
   animation: vt-fade-in 200ms ease-in;
 }
 
-::view-transition-old(photo-hero),
-::view-transition-new(photo-hero) {
-  animation-duration: 300ms;
-  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
 @keyframes vt-fade-out {
   from { opacity: 1; }
   to { opacity: 0; }

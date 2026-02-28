@@ -1,4 +1,5 @@
 import { Link, useParams, useRouter, useRouterState } from '@tanstack/react-router';
+import { TransitionLink } from '@/components/ui/transition-link';
 import type { CommentResponse } from 'imagiverse-shared';
 import { AlertTriangle, ChevronDown, ChevronUp, Eye, EyeOff, FolderPlus, Heart, Loader2, Lock, Maximize2, MessageCircle, Reply, SendHorizontal, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -167,8 +168,8 @@ export function PhotoDetailPage() {
 
         <div className="flex flex-col md:max-h-[85vh] md:min-h-0 md:overflow-hidden">
           <div className="flex items-center gap-3 pb-4">
-            <Link to="/users/$userId" params={{ userId: photo.userId }}>
-              <Avatar className="h-10 w-10">
+            <TransitionLink to="/users/$userId" params={{ userId: photo.userId }}>
+              <Avatar className="h-10 w-10" style={{ viewTransitionName: `avatar-${photo.userId}` }}>
                 {author?.avatarUrl ? (
                   <AvatarImage src={author.avatarUrl} alt={author.displayName} />
                 ) : null}
@@ -178,15 +179,15 @@ export function PhotoDetailPage() {
                     : '?'}
                 </AvatarFallback>
               </Avatar>
-            </Link>
+            </TransitionLink>
             <div className="min-w-0">
-              <Link
+              <TransitionLink
                 to="/users/$userId"
                 params={{ userId: photo.userId }}
                 className="font-medium hover:underline truncate block"
               >
                 {author?.displayName ?? photo.userId}
-              </Link>
+              </TransitionLink>
               <p className="text-xs text-muted-foreground">
                 {timeAgo(photo.createdAt)}
               </p>
