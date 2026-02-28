@@ -2,7 +2,9 @@ import { Link, useRouter } from '@tanstack/react-router';
 import type { ComponentProps, MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
 
-type LinkProps = ComponentProps<typeof Link>;
+type LinkProps = Omit<ComponentProps<typeof Link>, 'params'> & {
+  params?: Record<string, unknown>;
+};
 
 /**
  * A wrapper around TanStack Router's `Link` that triggers the View Transitions
@@ -30,7 +32,7 @@ export function TransitionLink(props: LinkProps) {
     document.startViewTransition(() => {
       flushSync(() => {
         router.navigate({
-          to: props.to,
+          to: props.to as never,
           params: props.params as never,
           search: props.search as never,
         });
@@ -38,5 +40,5 @@ export function TransitionLink(props: LinkProps) {
     });
   };
 
-  return <Link {...props} onClick={handleClick} />;
+  return <Link {...(props as ComponentProps<typeof Link>)} onClick={handleClick} />;
 }
