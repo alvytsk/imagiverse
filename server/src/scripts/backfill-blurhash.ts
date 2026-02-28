@@ -35,12 +35,7 @@ async function main() {
         thumbSmallKey: photos.thumbSmallKey,
       })
       .from(photos)
-      .where(
-        and(
-          eq(photos.status, 'ready'),
-          isNull(photos.blurhash),
-        ),
-      )
+      .where(and(eq(photos.status, 'ready'), isNull(photos.blurhash)))
       .limit(BATCH_SIZE);
 
     if (batch.length === 0) break;
@@ -60,13 +55,7 @@ async function main() {
             .raw()
             .toBuffer({ resolveWithObject: true });
 
-          const blurhash = encode(
-            new Uint8ClampedArray(pixels),
-            info.width,
-            info.height,
-            4,
-            3,
-          );
+          const blurhash = encode(new Uint8ClampedArray(pixels), info.width, info.height, 4, 3);
 
           await db
             .update(photos)
@@ -79,7 +68,7 @@ async function main() {
           failed++;
           console.error(`[ERR] photo ${photo.id}:`, (err as Error).message);
         }
-      }),
+      })
     );
   }
 

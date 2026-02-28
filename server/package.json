@@ -17,7 +17,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx src/scripts/seed.ts"
+    "db:seed": "tsx src/scripts/seed.ts",
+    "backfill:exif": "tsx src/scripts/backfill-exif.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.750.0",
@@ -32,6 +33,7 @@
     "bullmq": "^5.34.11",
     "dotenv": "^17.3.1",
     "drizzle-orm": "^0.38.3",
+    "exif-reader": "^2.0.3",
     "fastify": "^5.2.1",
     "imagiverse-shared": "workspace:*",
     "ioredis": "^5.4.2",

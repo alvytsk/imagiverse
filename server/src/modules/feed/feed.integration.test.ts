@@ -11,7 +11,8 @@ vi.mock('../../plugins/s3', () => ({
   getPresignedDownloadUrl: vi.fn().mockResolvedValue('https://fake-s3.example.com/presigned'),
   deleteObject: vi.fn().mockResolvedValue(undefined),
   S3Keys: {
-    original: (userId: string, photoId: string, ext: string) => `originals/${userId}/${photoId}.${ext}`,
+    original: (userId: string, photoId: string, ext: string) =>
+      `originals/${userId}/${photoId}.${ext}`,
     thumbSmall: (photoId: string) => `thumbs/${photoId}/small.webp`,
     thumbMedium: (photoId: string) => `thumbs/${photoId}/medium.webp`,
     thumbLarge: (photoId: string) => `thumbs/${photoId}/large.webp`,

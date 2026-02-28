@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 
 import { AddToAlbumDialog } from '@/components/albums/add-to-album-dialog';
+import { ExifPanel } from '@/components/photos/exif-panel';
 import { ReportDialog } from '@/components/photos/report-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -138,6 +139,7 @@ export function PhotoDetailPage() {
               src={imageSrc}
               alt={photo.caption ?? 'Photo'}
               className={`max-w-full object-contain max-h-[80vh] md:max-h-full ${isProcessing ? 'opacity-60 blur-[2px]' : ''}`}
+              style={{ viewTransitionName: `photo-${photoId}` }}
             />
           ) : (
             <Skeleton className="aspect-[4/3] w-full" />
@@ -194,6 +196,8 @@ export function PhotoDetailPage() {
           {photo.caption && (
             <p className="text-sm mb-4">{photo.caption}</p>
           )}
+
+          {photo.exifData && <ExifPanel exifData={photo.exifData} />}
 
           <div className="flex items-center gap-4 pb-2">
             <Button

@@ -11,6 +11,7 @@ interface BlurhashImageProps {
   src: string;
   alt: string;
   className?: string;
+  style?: React.CSSProperties;
   loading?: 'lazy' | 'eager';
 }
 
@@ -19,6 +20,7 @@ export function BlurhashImage({
   src,
   alt,
   className,
+  style,
   loading = 'lazy',
 }: BlurhashImageProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -44,7 +46,7 @@ export function BlurhashImage({
   }, [blurhash]);
 
   return (
-    <div className={cn('relative overflow-hidden', className)}>
+    <div className={cn('relative overflow-hidden', className)} style={style}>
       {blurhash && (
         <canvas
           ref={canvasRef}

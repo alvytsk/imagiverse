@@ -1,5 +1,6 @@
 import { and, desc, eq, lt, or, type SQL, sql } from 'drizzle-orm';
 import type {
+  ExifData,
   MeProfileResponse,
   PaginatedResponse,
   PhotoResponse,
@@ -254,6 +255,7 @@ export async function getUserPhotos(
       blurhash: photos.blurhash,
       width: photos.width,
       height: photos.height,
+      exifData: photos.exifData,
       likeCount: photos.likeCount,
       commentCount: photos.commentCount,
       createdAt: photos.createdAt,
@@ -290,6 +292,7 @@ export async function getUserPhotos(
         height: row.height,
         likeCount: row.likeCount,
         commentCount: row.commentCount,
+        exifData: (row.exifData as ExifData) ?? null,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
       };

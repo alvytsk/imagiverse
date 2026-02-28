@@ -173,7 +173,9 @@ async function seed() {
     `);
 
     console.log('\nSeed complete!');
-    console.log(`  ${USER_COUNT} users (login: user1@example.com / ${SEED_PASSWORD}; user1 is admin)`);
+    console.log(
+      `  ${USER_COUNT} users (login: user1@example.com / ${SEED_PASSWORD}; user1 is admin)`
+    );
     console.log(`  ${PHOTO_COUNT} photos`);
     console.log(`  ${likeValues.length} likes`);
     console.log(`  ${COMMENT_COUNT} comments`);

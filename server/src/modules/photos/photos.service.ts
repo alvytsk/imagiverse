@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
-import type { PhotoResponse, PhotoVisibility } from 'imagiverse-shared';
+import type { ExifData, PhotoResponse, PhotoVisibility } from 'imagiverse-shared';
 import sanitizeHtml from 'sanitize-html';
 import { db } from '../../db/index';
 import { photos } from '../../db/schema/index';
@@ -113,6 +113,7 @@ export async function buildPhotoResponse(photo: {
   blurhash: string | null;
   width: number | null;
   height: number | null;
+  exifData: unknown;
   likeCount: number;
   commentCount: number;
   createdAt: Date;
@@ -138,6 +139,7 @@ export async function buildPhotoResponse(photo: {
     height: photo.height,
     likeCount: photo.likeCount,
     commentCount: photo.commentCount,
+    exifData: (photo.exifData as ExifData) ?? null,
     createdAt: photo.createdAt.toISOString(),
     updatedAt: photo.updatedAt.toISOString(),
   };
@@ -158,7 +160,7 @@ export async function updateCaption(photoId: string, userId: string, caption: st
 export async function updateVisibility(
   photoId: string,
   userId: string,
-  visibility: 'public' | 'private',
+  visibility: 'public' | 'private'
 ) {
   const [updated] = await db
     .update(photos)

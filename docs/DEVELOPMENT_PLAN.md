@@ -1055,6 +1055,311 @@ on manual trigger / tag:
 | V1.7.4 Account lockout after repeated failed logins | 5 failures → 15 min lockout; admin can unlock |
 | V1.7.5 API input validation audit | All endpoints have Zod schemas; no unvalidated inputs |
 
+#### Epic V1.8: Enhanced Photo Experience
+
+**Status: ✓ COMPLETE**
+
+**Goal:** Extract and display rich EXIF metadata from photos, redesign photo cards with camera info, and add modern page transitions for a polished browsing experience.
+
+##### V1.8.1 — EXIF Metadata Extraction in Thumbnail Pipeline (Backend)
+
+**Problem:** The current thumbnail processor (`thumbnail.processor.ts`) calls `sharp(buffer).metadata()` but only reads `width` and `height`. The raw EXIF buffer (`metadata.exif`) is discarded. After conversion to WebP, all EXIF data is lost.
+
+**Solution:** Parse the raw EXIF buffer before thumbnail generation using `exif-reader` (npm, Sharp-recommended parser). Extract a curated set of fields and store them as JSONB in the `photos` table.
+
+**Extracted fields:**
+
+| Field | EXIF tag | Example value | Notes |
+|---|---|---|---|
+| `cameraMake` | `Image.Make` | `"Canon"` | Manufacturer |
+| `cameraModel` | `Image.Model` | `"Canon EOS R5"` | Camera body |
+| `lensMake` | `Exif.LensMake` | `"Canon"` | Lens manufacturer |
+| `lensModel` | `Exif.LensModel` | `"RF85mm F1.2 L USM"` | Lens name |
+| `focalLength` | `Exif.FocalLength` | `85` | In mm |
+| `focalLengthIn35mm` | `Exif.FocalLengthIn35mmFormat` | `85` | 35mm equivalent; useful for crop-sensor cameras |
+| `fNumber` | `Exif.FNumber` | `1.2` | Aperture |
+| `exposureTime` | `Exif.ExposureTime` | `0.002` | Seconds (raw); displayed as `"1/500s"` |
+| `iso` | `Exif.ISO` | `200` | Sensitivity |
+| `dateTimeOriginal` | `Exif.DateTimeOriginal` | `"2026-02-15T14:30:00"` | When the photo was actually taken (not uploaded) |
+| `flash` | `Exif.Flash` | `false` | Whether flash fired |
+| `exposureProgram` | `Exif.ExposureProgram` | `3` | Mapped to human label: `"Aperture Priority"` |
+| `meteringMode` | `Exif.MeteringMode` | `5` | Mapped to label: `"Multi-segment"` |
+| `whiteBalance` | `Exif.WhiteBalance` | `0` | Mapped to label: `"Auto"` |
+
+**Privacy:** GPS data (`GPSLatitude`, `GPSLongitude`, `GPSAltitude`) is **never stored** — explicitly excluded from extraction. This is privacy-by-design, consistent with the existing EXIF-stripping behavior.
+
+**Graceful handling:** Many images (PNG, WebP, screenshots, phone screenshots) have no EXIF data. If `metadata.exif` is `undefined` or parsing fails, store `null` in `exif_data`. The parser is wrapped in a try/catch — a corrupted EXIF block must never fail the entire thumbnail pipeline.
+
+**Implementation in `processThumbnailJob()`:**
+```typescript
+// After: const metadata = await sharp(originalBuffer).metadata();
+// Before: thumbnail generation
+
+let exifData: ExifData | null = null;
+if (metadata.exif) {
+  try {
+    const parsed = exifReader(metadata.exif);
+    exifData = extractCuratedExif(parsed); // maps raw tags → curated shape
+  } catch (err) {
+    jobLog.warn({ err }, 'EXIF parsing failed, storing null');
+  }
+}
+
+// ... later in the DB update:
+.set({ ...existingFields, exifData })
+```
+
+| Task | DoD |
+|---|---|
+| V1.8.1 Install `exif-reader`, implement `extractCuratedExif()` helper, integrate into `processThumbnailJob()` | ✓ EXIF extracted for JPEG/HEIC uploads; `null` for PNG/WebP/screenshots; GPS never stored; corrupted EXIF doesn't fail the job |
+
+##### V1.8.2 — Database Migration: `exif_data` JSONB Column
+
+New forward migration `0005_photo_exif_data.sql`:
+
+```sql
+ALTER TABLE photos ADD COLUMN exif_data JSONB;
+```
+
+JSONB is the right choice because:
+- EXIF data is semi-structured — different cameras produce different fields.
+- We don't need to query/filter/index by individual EXIF fields (no `WHERE fNumber < 2.0`).
+- Easy to extend with new fields without additional migrations.
+- Postgres JSONB supports efficient read access and is compact on disk.
+
+Drizzle schema update: add `exifData: jsonb('exif_data')` to the `photos` table definition.
+
+| Task | DoD |
+|---|---|
+| V1.8.2 Create migration, update Drizzle schema | ✓ Migration applies cleanly; existing photos get `exif_data = NULL`; Drizzle types reflect the new column |
+
+##### V1.8.3 — EXIF Data in API Responses (Backend + Shared)
+
+Add `ExifData` type to `shared/src/schemas/photos.ts`:
+
+```typescript
+export interface ExifData {
+  cameraMake: string | null;
+  cameraModel: string | null;
+  lensMake: string | null;
+  lensModel: string | null;
+  focalLength: number | null;       // mm
+  focalLengthIn35mm: number | null;  // mm (35mm equivalent)
+  fNumber: number | null;            // e.g. 2.8
+  exposureTime: string | null;       // human-readable: "1/500s"
+  iso: number | null;
+  dateTimeOriginal: string | null;   // ISO 8601
+  flash: boolean | null;
+  exposureProgram: string | null;    // "Manual", "Aperture Priority", etc.
+  meteringMode: string | null;       // "Multi-segment", "Center-weighted", etc.
+  whiteBalance: string | null;       // "Auto", "Manual"
+}
+```
+
+**Two levels of EXIF data in responses:**
+
+| Response type | Field | Content | Rationale |
+|---|---|---|---|
+| `PhotoResponse` (detail view) | `exifData: ExifData \| null` | Full 14-field object | Detail page shows complete camera info panel |
+| `FeedItemResponse` (feed/grid) | `exifSummary: ExifSummary \| null` | 5 fields: `cameraModel`, `focalLength`, `fNumber`, `iso`, `exposureTime` | Feed cards show compact shooting settings; ~100 bytes per item, negligible for a 20-item page |
+
+The `ExifSummary` is a lightweight subset — the feed query extracts these 5 fields from the JSONB column using Postgres JSON operators (`exif_data->>'cameraModel'`), avoiding sending the full object for every feed item.
+
+| Task | DoD |
+|---|---|
+| V1.8.3 Add types to shared schemas, update `buildPhotoResponse()`, update feed query to include `exifSummary` | ✓ Photo detail API returns full `exifData`; feed API returns `exifSummary`; both are `null` when no EXIF exists |
+
+##### V1.8.4 — View Transitions API Integration (Frontend)
+
+**Goal:** Smooth, modern page transitions — especially a "shared element" morph animation when navigating from a feed card to the photo detail page.
+
+**Technology: View Transitions API (native browser)**
+
+Why View Transitions API over Framer Motion / Motion:
+- Native browser feature — zero JS bundle cost.
+- Chrome 111+ (March 2023), Safari 18.2+ (Dec 2024) — covers >85% of users.
+- Automatic shared-element morphing when both old and new views have matching `view-transition-name` values.
+- Graceful degradation: unsupported browsers get instant navigation (no visual breakage).
+
+**Implementation approach with TanStack Router:**
+
+TanStack Router doesn't have built-in View Transitions API support. Integration strategy:
+
+1. **Custom `TransitionLink` component:** Wraps `@tanstack/react-router`'s `Link`. On click, intercepts the navigation event, calls `document.startViewTransition()`, and triggers the actual route change inside the transition callback using `flushSync()`:
+
+```typescript
+function TransitionLink(props: LinkProps) {
+  const router = useRouter();
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (!document.startViewTransition) return; // fallback: normal nav
+    e.preventDefault();
+    document.startViewTransition(() => {
+      flushSync(() => {
+        router.navigate({ to: props.to, params: props.params });
+      });
+    });
+  };
+
+  return <Link {...props} onClick={handleClick} />;
+}
+```
+
+2. **Shared element: photo image morph.** The key UX win — clicking a feed card photo morphs it into the photo detail hero image:
+
+```typescript
+// Feed card image
+<img style={{ viewTransitionName: `photo-${photo.id}` }} ... />
+
+// Photo detail hero image (same viewTransitionName)
+<img style={{ viewTransitionName: `photo-${photoId}` }} ... />
+```
+
+The browser automatically detects matching `view-transition-name` values between old and new DOM states and creates a morph animation. No JS animation code needed.
+
+3. **CSS transitions for page content:**
+
+```css
+/* Cross-fade for general page content */
+::view-transition-old(root) {
+  animation: fade-out 150ms ease-out;
+}
+::view-transition-new(root) {
+  animation: fade-in 200ms ease-in;
+}
+
+/* Shared photo element: morph animation (position + size) */
+::view-transition-old(photo-hero),
+::view-transition-new(photo-hero) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+```
+
+4. **Reduced motion:** Respect `prefers-reduced-motion: reduce` — disable all transition animations:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+```
+
+**Scope:** Apply transitions to these navigations:
+- Feed card → Photo detail (shared element morph)
+- Photo detail → Back to feed (reverse morph)
+- User avatar → User profile (cross-fade)
+- Any route → Any route (subtle cross-fade fallback)
+
+**Not in scope:** Browser back/forward navigation uses the browser's own MPA View Transitions (bfcache). We only handle SPA navigations.
+
+| Task | DoD |
+|---|---|
+| V1.8.4a Create `TransitionLink` component with `startViewTransition` + `flushSync` | ✓ Navigation wraps in view transition; graceful fallback for unsupported browsers |
+| V1.8.4b Add `view-transition-name` to feed card images and photo detail hero image | ✓ Photo morphs smoothly from feed card to detail page and back |
+| V1.8.4c CSS transition rules + reduced-motion media query | ✓ Cross-fade on route changes; morph on photo transitions; animations disabled when reduced motion preferred |
+| V1.8.4d Replace key navigation `Link` instances with `TransitionLink` (feed cards, user avatars, back buttons) | ✓ All primary navigations use transitions; secondary links (admin, settings) use standard navigation |
+
+##### V1.8.5 — Redesigned Photo Card with Metadata (Frontend)
+
+Redesign the `FeedCard` component to show shooting metadata when EXIF data is available.
+
+**Current card layout:**
+```
+┌─────────────────────────┐
+│                         │
+│        [Image]          │
+│                         │
+│              ♥ 42  💬 7 │  ← bottom-right overlay
+├─────────────────────────┤
+│ 👤 Author Name          │
+└─────────────────────────┘
+```
+
+**New card layout:**
+```
+┌─────────────────────────┐
+│                         │
+│        [Image]          │
+│                         │
+│ 📷 Canon EOS R5        │  ← camera badge (bottom-left, semi-transparent)
+│              ♥ 42  💬 7 │  ← stats badge (bottom-right, unchanged)
+├─────────────────────────┤
+│ 👤 Author Name          │
+│ 85mm  ƒ/1.4  ISO 200   │  ← shooting settings (muted, small text)
+└─────────────────────────┘
+```
+
+**Design rules:**
+- Camera badge: semi-transparent dark background pill on the image (bottom-left). Shows short model name (e.g., `"EOS R5"` — strip manufacturer prefix if it's redundant with the model string).
+- Shooting settings line: below author name, muted text color, uses photography-standard notation: `85mm`, `ƒ/1.4`, `ISO 200`, `1/500s`. Separate values with interpunct (`·`).
+- **Graceful absence:** If `exifSummary` is `null` (no EXIF data), both elements are hidden — the card looks exactly like the current design. No empty space, no "Unknown camera" placeholders.
+- **Responsive:** On narrow cards (masonry column < 200px), hide the camera badge (shooting settings in footer are always visible if data exists).
+- Existing blurhash placeholder, like/comment overlay, and author footer are preserved.
+
+| Task | DoD |
+|---|---|
+| V1.8.5 Redesign `FeedCard` with camera badge and shooting settings line | ✓ Feed cards show camera model and settings when EXIF available; hidden gracefully when absent; responsive on narrow columns |
+
+##### V1.8.6 — Photo Detail Page: EXIF Info Panel (Frontend)
+
+Add a collapsible "Camera Details" section to the photo detail sidebar (below the like/comment buttons, above the comments section).
+
+**Layout:**
+```
+┌───────────────────────────┐
+│  📷 Camera Details    [▾] │  ← collapsible header
+├───────────────────────────┤
+│  Camera    Canon EOS R5   │
+│  Lens      RF 85mm F1.2L  │
+│  Focal     85mm (85mm eq) │
+│  Aperture  ƒ/1.2          │
+│  Shutter   1/500s         │
+│  ISO       200            │
+│  Flash     Off            │
+│  Metering  Multi-segment  │
+│  White Bal Auto           │
+│  Taken     Feb 15, 2026   │
+└───────────────────────────┘
+```
+
+**Behavior:**
+- Only rendered when `exifData` is non-null (no empty "No camera info" state).
+- Collapsible via shadcn/ui `Collapsible` component. Default: expanded on first view. Collapse state persisted in localStorage (`exif-panel-open`).
+- Each row only shown if the value is non-null (e.g., no "Lens: —" rows).
+- Values formatted for readability:
+  - Camera: strip `"Inc."`, `"Corporation"` suffixes from make.
+  - Exposure time: raw `0.002` → `"1/500s"`. Raw `2.5` → `"2.5s"`.
+  - Exposure program: numeric enum → label (`1`=Manual, `2`=Normal, `3`=Aperture Priority, `4`=Shutter Priority, etc.).
+  - Date: ISO 8601 → locale-formatted date string.
+
+| Task | DoD |
+|---|---|
+| V1.8.6 Add `ExifPanel` component to photo detail sidebar | ✓ Full EXIF details shown in collapsible panel; values human-formatted; hidden when no EXIF data; collapse state persisted |
+
+##### V1.8.7 — Backfill EXIF Data for Existing Photos (Script)
+
+Server-side script `server/src/scripts/backfill-exif.ts`:
+
+1. Query all photos with `status = 'ready'` AND `exif_data IS NULL`.
+2. For each photo, download the **original** from S3 (originals retain EXIF; thumbnails are WebP and don't).
+3. Read Sharp metadata → parse EXIF → extract curated fields (same logic as V1.8.1).
+4. Update `photos.exif_data` column.
+5. Process in batches of 50 with a 100ms delay between batches to avoid S3/DB pressure.
+6. Log progress: `Processed 150/1200 photos (12.5%)`.
+7. Idempotent: only processes `exif_data IS NULL` rows; safe to re-run.
+
+**Expected behavior:** Most photos uploaded from phones/cameras will have EXIF data. PNGs, screenshots, and web-sourced images will get `exif_data = null` (and remain null — this is correct).
+
+Add npm script: `"backfill:exif": "tsx src/scripts/backfill-exif.ts"`.
+
+| Task | DoD |
+|---|---|
+| V1.8.7 Implement and run backfill script | ✓ All existing photos have `exif_data` populated (or explicitly `null` for non-EXIF images); script is idempotent and logged |
+
 **v1 Definition of Done:**
 - All v1 epics complete.
 - Production deployment (Docker-based, Garage S3, monitoring, alerting).
@@ -1068,6 +1373,10 @@ on manual trigger / tag:
 |---|---|---|---|
 | Notification volume at scale | Low (v1 scale) | DB write pressure | Batch notification inserts; consider Redis-based unread count |
 | Load test reveals unexpected bottleneck | Medium | Delays launch | Budget time for perf investigation; have a "good enough" fallback |
+| EXIF parsing failures on edge-case images | Medium | Missing metadata | Try/catch in parser; store `null` on failure; never block thumbnail pipeline. Test against diverse real-world images (phone, DSLR, drone, screenshot). |
+| View Transitions API browser support | Low | No transitions in Firefox | Graceful fallback: `if (!document.startViewTransition)` → normal navigation. Feature is progressive enhancement, not functional. Firefox support expected mid-2026. |
+| `view-transition-name` conflicts in masonry grid | Low | Janky animation | Each photo gets unique `view-transition-name: photo-{id}`. Only one name is active at a time (clicked card). Clear transition name on non-visible cards if perf issues arise. |
+| EXIF backfill S3 bandwidth | Low | Slow backfill, cost | Batch processing (50 at a time, 100ms delay). For 1000 photos ≈ 20 batches ≈ 2 seconds plus download time. Monitor S3 request costs. |
 
 ---
 

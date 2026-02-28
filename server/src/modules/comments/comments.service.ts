@@ -188,9 +188,7 @@ export async function listComments(
 
   // Only fetch top-level comments (parentId IS NULL)
   const baseCondition = and(eq(comments.photoId, photoId), isNull(comments.parentId));
-  const whereConditions = cursorCondition
-    ? and(baseCondition, cursorCondition)
-    : baseCondition;
+  const whereConditions = cursorCondition ? and(baseCondition, cursorCondition) : baseCondition;
 
   const rows = await db
     .select({
@@ -259,9 +257,7 @@ export async function listReplies(
   }
 
   const baseCondition = eq(comments.parentId, parentId);
-  const whereConditions = cursorCondition
-    ? and(baseCondition, cursorCondition)
-    : baseCondition;
+  const whereConditions = cursorCondition ? and(baseCondition, cursorCondition) : baseCondition;
 
   const rows = await db
     .select({

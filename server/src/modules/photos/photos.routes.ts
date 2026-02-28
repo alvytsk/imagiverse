@@ -1,7 +1,13 @@
 import multipartPlugin from '@fastify/multipart';
 import type { FastifyInstance } from 'fastify';
-import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, PHOTO_VISIBILITY, UpdateCaptionSchema, UpdateVisibilitySchema } from 'imagiverse-shared';
 import type { PhotoVisibility } from 'imagiverse-shared';
+import {
+  ALLOWED_MIME_TYPES,
+  MAX_FILE_SIZE_BYTES,
+  PHOTO_VISIBILITY,
+  UpdateCaptionSchema,
+  UpdateVisibilitySchema,
+} from 'imagiverse-shared';
 import sharp from 'sharp';
 import { authenticate, tryParseAuth } from '../../middleware/auth';
 import type { PhotoIdParams } from './photos.schema';
@@ -104,7 +110,11 @@ export async function photoRoutes(fastify: FastifyInstance): Promise<void> {
       // Extract visibility from multipart fields
       const visibilityField = data.fields.visibility;
       let visibility: PhotoVisibility = 'public';
-      if (visibilityField && 'value' in visibilityField && typeof visibilityField.value === 'string') {
+      if (
+        visibilityField &&
+        'value' in visibilityField &&
+        typeof visibilityField.value === 'string'
+      ) {
         if (PHOTO_VISIBILITY.includes(visibilityField.value as PhotoVisibility)) {
           visibility = visibilityField.value as PhotoVisibility;
         }

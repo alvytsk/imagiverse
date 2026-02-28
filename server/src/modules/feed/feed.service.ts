@@ -1,5 +1,5 @@
 import { and, desc, eq, lt, or } from 'drizzle-orm';
-import type { FeedItemResponse, PaginatedResponse } from 'imagiverse-shared';
+import type { ExifData, ExifSummary, FeedItemResponse, PaginatedResponse } from 'imagiverse-shared';
 import { db } from '../../db/index';
 import { feedScores, photos, users } from '../../db/schema/index';
 import { redis } from '../../plugins/redis';
@@ -87,6 +87,7 @@ export async function getFeed(
       height: photos.height,
       likeCount: photos.likeCount,
       commentCount: photos.commentCount,
+      exifData: photos.exifData,
       createdAt: photos.createdAt,
       score: feedScores.score,
       authorId: users.id,
@@ -115,6 +116,17 @@ export async function getFeed(
         row.thumbLargeKey ? getPresignedDownloadUrl(row.thumbLargeKey, PRESIGNED_URL_EXPIRY) : null,
       ]);
 
+      const exif = row.exifData as ExifData | null;
+      const exifSummary: ExifSummary | null = exif
+        ? {
+            cameraModel: exif.cameraModel,
+            focalLength: exif.focalLength,
+            fNumber: exif.fNumber,
+            iso: exif.iso,
+            exposureTime: exif.exposureTime,
+          }
+        : null;
+
       return {
         id: row.id,
         userId: row.userId,
@@ -125,6 +137,7 @@ export async function getFeed(
         height: row.height,
         likeCount: row.likeCount,
         commentCount: row.commentCount,
+        exifSummary,
         score: row.score,
         createdAt: row.createdAt.toISOString(),
         author: {

@@ -2,10 +2,12 @@ import { encode } from 'blurhash';
 import type { Job } from 'bullmq';
 import { Worker } from 'bullmq';
 import { eq } from 'drizzle-orm';
+import type { ExifData } from 'imagiverse-shared';
 import sharp from 'sharp';
 import { env } from '../config/env';
 import { db } from '../db/index';
 import { photos } from '../db/schema/index';
+import { extractCuratedExif } from '../lib/exif';
 import { logger } from '../lib/logger';
 import { downloadObject, S3Keys, uploadObject } from '../plugins/s3';
 import { bullConnection, THUMBNAIL_QUEUE_NAME, type ThumbnailJobData } from './queue';
@@ -41,7 +43,23 @@ export async function processThumbnailJob(job: Job<ThumbnailJobData>): Promise<v
     throw new Error(`Invalid image metadata for photo ${photoId}`);
   }
 
-  // 3. Generate 3 thumbnails in parallel
+  // 3. Extract EXIF data (before thumbnails strip it via WebP conversion)
+  let exifData: ExifData | null = null;
+  if (metadata.exif) {
+    try {
+      exifData = extractCuratedExif(metadata.exif);
+      if (exifData) {
+        jobLog.info(
+          { cameraMake: exifData.cameraMake, cameraModel: exifData.cameraModel },
+          'EXIF extracted'
+        );
+      }
+    } catch (err) {
+      jobLog.warn({ err }, 'EXIF parsing failed, storing null');
+    }
+  }
+
+  // 4. Generate 3 thumbnails in parallel
   const thumbnailResults = await Promise.all(
     THUMBNAIL_SIZES.map(async (size) => {
       const buffer = await sharp(originalBuffer)
@@ -61,12 +79,12 @@ export async function processThumbnailJob(job: Job<ThumbnailJobData>): Promise<v
     })
   );
 
-  // 4. Upload all thumbnails to S3
+  // 5. Upload all thumbnails to S3
   await Promise.all(
     thumbnailResults.map((thumb) => uploadObject(thumb.key, thumb.buffer, 'image/webp'))
   );
 
-  // 5. Generate blurhash from small thumbnail
+  // 6. Generate blurhash from small thumbnail
   const smallThumb = thumbnailResults.find((t) => t.name === 'small')!;
   const blurhashSize = 32;
   const { data: pixels, info } = await sharp(smallThumb.buffer)
@@ -76,7 +94,7 @@ export async function processThumbnailJob(job: Job<ThumbnailJobData>): Promise<v
     .toBuffer({ resolveWithObject: true });
   const blurhash = encode(new Uint8ClampedArray(pixels), info.width, info.height, 4, 3);
 
-  // 6. Update DB row with thumbnail keys, dimensions, blurhash, and status
+  // 7. Update DB row with thumbnail keys, dimensions, blurhash, EXIF, and status
   await db
     .update(photos)
     .set({
@@ -86,6 +104,7 @@ export async function processThumbnailJob(job: Job<ThumbnailJobData>): Promise<v
       width: metadata.width,
       height: metadata.height,
       blurhash,
+      exifData,
       status: 'ready',
       updatedAt: new Date(),
     })

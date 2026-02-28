@@ -65,6 +65,7 @@ export const photos = pgTable(
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
     mimeType: text('mime_type'),
     blurhash: text('blurhash'),
+    exifData: jsonb('exif_data'),
     visibility: text('visibility').notNull().default('public'),
     likeCount: integer('like_count').notNull().default(0),
     commentCount: integer('comment_count').notNull().default(0),
@@ -250,7 +251,11 @@ export const likesRelations = relations(likes, ({ one }) => ({
 export const commentsRelations = relations(comments, ({ one, many }) => ({
   user: one(users, { fields: [comments.userId], references: [users.id] }),
   photo: one(photos, { fields: [comments.photoId], references: [photos.id] }),
-  parent: one(comments, { fields: [comments.parentId], references: [comments.id], relationName: 'commentReplies' }),
+  parent: one(comments, {
+    fields: [comments.parentId],
+    references: [comments.id],
+    relationName: 'commentReplies',
+  }),
   replies: many(comments, { relationName: 'commentReplies' }),
 }));
 
