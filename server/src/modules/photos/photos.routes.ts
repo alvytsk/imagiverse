@@ -11,6 +11,7 @@ import {
 import sharp from 'sharp';
 import { authenticate, tryParseAuth } from '../../middleware/auth';
 import type { PhotoIdParams } from './photos.schema';
+import { hasUserLiked } from '../likes/likes.service';
 import {
   buildPhotoResponse,
   checkUploadRateLimit,
@@ -146,8 +147,9 @@ export async function photoRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
+      const authUser = tryParseAuth(request);
+
       if (photo.visibility === 'private') {
-        const authUser = tryParseAuth(request);
         if (authUser?.id !== photo.userId) {
           return reply.status(404).send({
             error: { code: 'NOT_FOUND', message: 'Photo not found' },
@@ -155,7 +157,8 @@ export async function photoRoutes(fastify: FastifyInstance): Promise<void> {
         }
       }
 
-      const response = await buildPhotoResponse(photo);
+      const likedByMe = authUser ? await hasUserLiked(authUser.id, photo.id) : false;
+      const response = await buildPhotoResponse(photo, { likedByMe });
       return reply.send(response);
     },
   });

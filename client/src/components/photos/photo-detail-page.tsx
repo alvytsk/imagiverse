@@ -46,7 +46,7 @@ export function PhotoDetailPage() {
   const { likeMutation, unlikeMutation, isAuthenticated } =
     useLikePhoto(photoId);
   const currentUserId = useAuthStore((s) => s.user?.id);
-  const [liked, setLiked] = useState(false);
+  const liked = photo?.likedByMe ?? false;
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [addToAlbumOpen, setAddToAlbumOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -113,10 +113,8 @@ export function PhotoDetailPage() {
       return;
     }
     if (liked) {
-      setLiked(false);
       unlikeMutation.mutate();
     } else {
-      setLiked(true);
       likeMutation.mutate();
     }
   };

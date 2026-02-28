@@ -53,10 +53,14 @@ export async function processThumbnailJob(job: Job<ThumbnailJobData>): Promise<v
           { cameraMake: exifData.cameraMake, cameraModel: exifData.cameraModel },
           'EXIF extracted'
         );
+      } else {
+        jobLog.info('EXIF buffer present but no useful fields found');
       }
     } catch (err) {
       jobLog.warn({ err }, 'EXIF parsing failed, storing null');
     }
+  } else {
+    jobLog.info({ format: metadata.format }, 'No EXIF buffer in image metadata');
   }
 
   // 4. Generate 3 thumbnails in parallel

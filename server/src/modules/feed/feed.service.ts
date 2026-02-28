@@ -2,6 +2,7 @@ import { and, desc, eq, lt, or } from 'drizzle-orm';
 import type { ExifData, ExifSummary, FeedItemResponse, PaginatedResponse } from 'imagiverse-shared';
 import { db } from '../../db/index';
 import { feedScores, photos, users } from '../../db/schema/index';
+import { getUserLikedPhotoIds } from '../likes/likes.service';
 import { redis } from '../../plugins/redis';
 import { getPresignedDownloadUrl } from '../../plugins/s3';
 
@@ -46,7 +47,8 @@ function feedCacheKey(cursor: string | undefined, limit: number): string {
 
 export async function getFeed(
   cursor?: string,
-  limit?: number
+  limit?: number,
+  currentUserId?: string
 ): Promise<PaginatedResponse<FeedItemResponse>> {
   const pageLimit = Math.min(Math.max(limit ?? DEFAULT_PAGE_LIMIT, 1), MAX_PAGE_LIMIT);
 
@@ -55,7 +57,18 @@ export async function getFeed(
   if (!cursor) {
     const cached = await redis.get(cacheKey);
     if (cached) {
-      return JSON.parse(cached);
+      const result = JSON.parse(cached) as PaginatedResponse<FeedItemResponse>;
+      // Enrich with user-specific like status
+      if (currentUserId && result.data.length > 0) {
+        const likedSet = await getUserLikedPhotoIds(
+          currentUserId,
+          result.data.map((item) => item.id)
+        );
+        for (const item of result.data) {
+          item.likedByMe = likedSet.has(item.id);
+        }
+      }
+      return result;
     }
   }
 
@@ -105,6 +118,11 @@ export async function getFeed(
   const hasMore = rows.length > pageLimit;
   const data = rows.slice(0, pageLimit);
 
+  // Batch-check which photos the current user has liked
+  const likedSet = currentUserId
+    ? await getUserLikedPhotoIds(currentUserId, data.map((r) => r.id))
+    : new Set<string>();
+
   // Generate presigned URLs for thumbnails
   const feedItems: FeedItemResponse[] = await Promise.all(
     data.map(async (row) => {
@@ -137,6 +155,7 @@ export async function getFeed(
         height: row.height,
         likeCount: row.likeCount,
         commentCount: row.commentCount,
+        likedByMe: likedSet.has(row.id),
         exifSummary,
         score: row.score,
         createdAt: row.createdAt.toISOString(),

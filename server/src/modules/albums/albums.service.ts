@@ -204,6 +204,7 @@ export async function getAlbumPhotos(albumId: string): Promise<PhotoResponse[]> 
         height: row.height,
         likeCount: row.likeCount,
         commentCount: row.commentCount,
+        likedByMe: false,
         exifData: (row.exifData as ExifData) ?? null,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),

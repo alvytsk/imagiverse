@@ -2,8 +2,9 @@ import { Link, useRouter } from '@tanstack/react-router';
 import type { ComponentProps, MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
 
-type LinkProps = Omit<ComponentProps<typeof Link>, 'params'> & {
+type LinkProps = Omit<ComponentProps<typeof Link>, 'params' | 'search'> & {
   params?: Record<string, unknown>;
+  search?: Record<string, unknown>;
 };
 
 /**

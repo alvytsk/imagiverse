@@ -95,6 +95,8 @@ export function useAddPhotoToAlbum(albumId: string) {
       api.post(`/albums/${albumId}/photos`, { photoId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['albums', albumId] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['photos'] });
       toast.success('Фото добавлено в альбом');
     },
     onError: (err) => {
@@ -115,6 +117,8 @@ export function useRemovePhotoFromAlbum(albumId: string) {
       api.delete(`/albums/${albumId}/photos/${photoId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['albums', albumId] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['photos'] });
     },
     onError: () => {
       toast.error('Не удалось удалить фото из альбома');

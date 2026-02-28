@@ -224,8 +224,8 @@ function FeedCard({ photo }: { photo: FeedItemResponse }) {
             </div>
           )}
           <div className="absolute bottom-2 right-2 flex items-center gap-2 rounded-full bg-black/30 px-2.5 py-1 text-white text-xs backdrop-blur-sm transition-all group-hover:bg-black/50">
-            <span className="flex items-center gap-1">
-              <Heart className="h-3.5 w-3.5" />
+            <span className={`flex items-center gap-1 ${photo.likedByMe ? 'text-red-400' : ''}`}>
+              <Heart className={`h-3.5 w-3.5 ${photo.likedByMe ? 'fill-current' : ''}`} />
               {photo.likeCount}
             </span>
             <span className="flex items-center gap-1">

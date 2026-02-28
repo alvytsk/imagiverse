@@ -74,15 +74,16 @@ async function main() {
           }
         }
 
-        // Store the result (null or extracted data).
-        // Use an empty JSON object to mark "processed but no EXIF" so we don't re-process.
-        await db
-          .update(photos)
-          .set({
-            exifData: exifData ?? {},
-            updatedAt: new Date(),
-          })
-          .where(eq(photos.id, photo.id));
+        // Store extracted data, or skip update if no EXIF found (leaves null for re-processing).
+        if (exifData) {
+          await db
+            .update(photos)
+            .set({
+              exifData,
+              updatedAt: new Date(),
+            })
+            .where(eq(photos.id, photo.id));
+        }
 
         processed++;
         if (exifData) {

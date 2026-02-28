@@ -118,7 +118,7 @@ export async function buildPhotoResponse(photo: {
   commentCount: number;
   createdAt: Date;
   updatedAt: Date;
-}): Promise<PhotoResponse> {
+}, options?: { likedByMe?: boolean }): Promise<PhotoResponse> {
   const [small, medium, large] = await Promise.all([
     photo.thumbSmallKey ? getPresignedDownloadUrl(photo.thumbSmallKey, PRESIGNED_URL_EXPIRY) : null,
     photo.thumbMediumKey
@@ -139,6 +139,7 @@ export async function buildPhotoResponse(photo: {
     height: photo.height,
     likeCount: photo.likeCount,
     commentCount: photo.commentCount,
+    likedByMe: options?.likedByMe ?? false,
     exifData: (photo.exifData as ExifData) ?? null,
     createdAt: photo.createdAt.toISOString(),
     updatedAt: photo.updatedAt.toISOString(),

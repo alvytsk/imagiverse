@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../../db/index';
 import { feedScores, likes, photos, users } from '../../db/schema/index';
 import { invalidateFeedCache } from '../../jobs/feed-score.processor';
@@ -119,4 +119,16 @@ export async function hasUserLiked(userId: string, photoId: string): Promise<boo
     .limit(1);
 
   return !!row;
+}
+
+export async function getUserLikedPhotoIds(
+  userId: string,
+  photoIds: string[]
+): Promise<Set<string>> {
+  if (photoIds.length === 0) return new Set();
+  const rows = await db
+    .select({ photoId: likes.photoId })
+    .from(likes)
+    .where(and(eq(likes.userId, userId), inArray(likes.photoId, photoIds)));
+  return new Set(rows.map((r) => r.photoId));
 }

@@ -112,7 +112,7 @@ describe('GET /api/feed', () => {
       url: '/api/feed?cursor=abc123&limit=10',
     });
 
-    expect(mockService.getFeed).toHaveBeenCalledWith('abc123', 10);
+    expect(mockService.getFeed).toHaveBeenCalledWith('abc123', 10, undefined);
   });
 
   it('returns empty feed when no photos', async () => {

@@ -41,6 +41,7 @@ export function useLikePhoto(photoId: string) {
         queryClient.setQueryData<PhotoResponse>(['photos', photoId], {
           ...previous,
           likeCount: previous.likeCount + 1,
+          likedByMe: true,
         });
       }
       return { previous };
@@ -69,6 +70,7 @@ export function useLikePhoto(photoId: string) {
         queryClient.setQueryData<PhotoResponse>(['photos', photoId], {
           ...previous,
           likeCount: Math.max(0, previous.likeCount - 1),
+          likedByMe: false,
         });
       }
       return { previous };

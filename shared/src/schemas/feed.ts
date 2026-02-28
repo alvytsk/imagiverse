@@ -10,6 +10,7 @@ export interface FeedItemResponse {
   height: number | null;
   likeCount: number;
   commentCount: number;
+  likedByMe: boolean;
   exifSummary: ExifSummary | null;
   score: number;
   createdAt: string;

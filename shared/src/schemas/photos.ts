@@ -61,6 +61,7 @@ export interface PhotoResponse {
   height: number | null;
   likeCount: number;
   commentCount: number;
+  likedByMe: boolean;
   exifData: ExifData | null;
   createdAt: string;
   updatedAt: string;

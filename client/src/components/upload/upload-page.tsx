@@ -1,4 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from 'imagiverse-shared';
 import type { PhotoVisibility } from 'imagiverse-shared';
 import { Eye, EyeOff, ImagePlus, Upload, X } from 'lucide-react';
@@ -14,6 +15,7 @@ import { useAuthStore } from '@/stores/auth-store';
 
 export function UploadPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
@@ -103,6 +105,9 @@ export function UploadPage() {
       }
 
       const data = await res.json();
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['photos'] });
       toast.success('Photo uploaded! It will appear once processing is complete.');
       navigate({
         to: '/photos/$photoId',

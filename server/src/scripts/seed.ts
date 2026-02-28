@@ -53,14 +53,28 @@ function generateExifData() {
   const models = CAMERA_MODELS[make];
   const model = models[Math.floor(Math.random() * models.length)];
 
+  const focalLength = faker.helpers.arrayElement([24, 35, 50, 85, 100, 135, 200]);
+
   return {
-    make,
-    model,
-    exposureTime: faker.helpers.arrayElement(['1/30', '1/60', '1/125', '1/250', '1/500', '1/1000', '1/2000']),
+    cameraMake: make,
+    cameraModel: model,
+    lensMake: faker.helpers.arrayElement([make, null]),
+    lensModel: faker.helpers.arrayElement([
+      `${focalLength}mm f/1.8`,
+      `${focalLength}-${focalLength * 2}mm f/2.8`,
+      `${focalLength}mm f/1.4`,
+      null,
+    ]),
+    focalLength,
+    focalLengthIn35mm: faker.helpers.arrayElement([focalLength, Math.round(focalLength * 1.5), null]),
     fNumber: faker.helpers.arrayElement([1.4, 1.8, 2.0, 2.8, 4.0, 5.6, 8.0, 11.0]),
+    exposureTime: faker.helpers.arrayElement(['1/30s', '1/60s', '1/125s', '1/250s', '1/500s', '1/1000s', '1/2000s']),
     iso: faker.helpers.arrayElement([100, 200, 400, 800, 1600, 3200, 6400]),
-    focalLength: faker.helpers.arrayElement([24, 35, 50, 85, 100, 135, 200]),
-    dateTime: faker.date.recent({ days: 30 }).toISOString(),
+    dateTimeOriginal: faker.date.recent({ days: 30 }).toISOString(),
+    flash: faker.helpers.arrayElement([true, false, null]),
+    exposureProgram: faker.helpers.arrayElement(['Manual', 'Aperture Priority', 'Shutter Priority', 'Normal', null]),
+    meteringMode: faker.helpers.arrayElement(['Multi-segment', 'Center-weighted', 'Spot', null]),
+    whiteBalance: faker.helpers.arrayElement(['Auto', 'Manual', null]),
   };
 }
 
