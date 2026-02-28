@@ -1,15 +1,25 @@
+import multipartPlugin from '@fastify/multipart';
 import type { FastifyInstance } from 'fastify';
 import { UpdateProfileSchema } from 'imagiverse-shared';
+import sharp from 'sharp';
 import { z } from 'zod';
 import { authenticate, tryParseAuth } from '../../middleware/auth';
 import type { PaginationQuery, SearchQuery, UserIdParams } from './users.schema';
 import {
+  deleteAvatar,
+  deleteBanner,
   getMyProfile,
   getPublicProfile,
   getUserPhotos,
   searchUsers,
   updateProfile,
+  uploadAvatar,
+  uploadBanner,
 } from './users.service';
+
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const BANNER_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+const ALLOWED_IMAGE_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
 
 function validationError(details: Array<{ field: string; message: string }>) {
   return {
@@ -22,6 +32,11 @@ function validationError(details: Array<{ field: string; message: string }>) {
 }
 
 export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
+  // Register multipart for avatar/banner uploads (scoped to this plugin)
+  await fastify.register(multipartPlugin, {
+    limits: { files: 1, fileSize: BANNER_MAX_BYTES },
+  });
+
   // ── GET /users/me ─────────────────────────────────────────────────────────
   fastify.get('/users/me', {
     preHandler: authenticate,
@@ -116,6 +131,74 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       return reply.send(profile);
+    },
+  });
+
+  // ── POST /users/me/avatar ─────────────────────────────────────────────────
+  fastify.post('/users/me/avatar', {
+    preHandler: authenticate,
+    handler: async (request, reply) => {
+      const userId = request.user!.id;
+      const data = await request.file({ limits: { fileSize: AVATAR_MAX_BYTES } });
+      if (!data) {
+        return reply.status(400).send(validationError([{ field: 'file', message: 'No file uploaded' }]));
+      }
+      if (!ALLOWED_IMAGE_MIME.includes(data.mimetype)) {
+        return reply.status(400).send({ error: { code: 'INVALID_FILE_TYPE', message: 'Unsupported image type' } });
+      }
+      const fileBuffer = await data.toBuffer();
+      try {
+        const meta = await sharp(fileBuffer).metadata();
+        if (!meta.format) throw new Error('No format');
+      } catch {
+        return reply.status(400).send({ error: { code: 'INVALID_FILE_TYPE', message: 'Unable to read image file' } });
+      }
+      await uploadAvatar(userId, fileBuffer);
+      const profile = await getMyProfile(userId);
+      return reply.send({ avatarUrl: profile?.avatarUrl ?? null });
+    },
+  });
+
+  // ── DELETE /users/me/avatar ───────────────────────────────────────────────
+  fastify.delete('/users/me/avatar', {
+    preHandler: authenticate,
+    handler: async (request, reply) => {
+      await deleteAvatar(request.user!.id);
+      return reply.status(204).send();
+    },
+  });
+
+  // ── POST /users/me/banner ─────────────────────────────────────────────────
+  fastify.post('/users/me/banner', {
+    preHandler: authenticate,
+    handler: async (request, reply) => {
+      const userId = request.user!.id;
+      const data = await request.file();
+      if (!data) {
+        return reply.status(400).send(validationError([{ field: 'file', message: 'No file uploaded' }]));
+      }
+      if (!ALLOWED_IMAGE_MIME.includes(data.mimetype)) {
+        return reply.status(400).send({ error: { code: 'INVALID_FILE_TYPE', message: 'Unsupported image type' } });
+      }
+      const fileBuffer = await data.toBuffer();
+      try {
+        const meta = await sharp(fileBuffer).metadata();
+        if (!meta.format) throw new Error('No format');
+      } catch {
+        return reply.status(400).send({ error: { code: 'INVALID_FILE_TYPE', message: 'Unable to read image file' } });
+      }
+      await uploadBanner(userId, fileBuffer);
+      const profile = await getMyProfile(userId);
+      return reply.send({ bannerUrl: profile?.bannerUrl ?? null });
+    },
+  });
+
+  // ── DELETE /users/me/banner ───────────────────────────────────────────────
+  fastify.delete('/users/me/banner', {
+    preHandler: authenticate,
+    handler: async (request, reply) => {
+      await deleteBanner(request.user!.id);
+      return reply.status(204).send();
     },
   });
 

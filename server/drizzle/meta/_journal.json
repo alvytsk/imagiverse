@@ -43,6 +43,13 @@
       "when": 1740614400000,
       "tag": "0005_exif_data",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1772287326979,
+      "tag": "0006_sticky_nocturne",
+      "breakpoints": true
     }
   ]
 }

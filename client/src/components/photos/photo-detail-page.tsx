@@ -48,6 +48,7 @@ export function PhotoDetailPage() {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const liked = photo?.likedByMe ?? false;
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxVisible, setLightboxVisible] = useState(false);
   const [addToAlbumOpen, setAddToAlbumOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const lightboxCloseRef = useRef<HTMLButtonElement>(null);
@@ -57,8 +58,14 @@ export function PhotoDetailPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!lightboxOpen) return;
-    requestAnimationFrame(() => lightboxCloseRef.current?.focus());
+    if (!lightboxOpen) {
+      setLightboxVisible(false);
+      return;
+    }
+    requestAnimationFrame(() => {
+      setLightboxVisible(true);
+      lightboxCloseRef.current?.focus();
+    });
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setLightboxOpen(false);
     };
@@ -125,7 +132,7 @@ export function PhotoDetailPage() {
     <div className="mx-auto max-w-5xl">
       <div className="grid gap-6 md:grid-cols-[1fr_380px]">
         <div
-          className={`overflow-hidden rounded-2xl bg-muted/20 dark:bg-black relative flex items-center justify-center md:self-start ${!isProcessing && imageSrc ? 'cursor-zoom-in group' : ''}`}
+          className={`overflow-hidden rounded-2xl bg-muted/20 relative flex items-center justify-center md:self-start ${!isProcessing && imageSrc ? 'cursor-zoom-in group' : ''}`}
           onClick={(e) => {
             if (!isProcessing && imageSrc) {
               lightboxTriggerRef.current = e.currentTarget as HTMLElement;
@@ -320,7 +327,7 @@ export function PhotoDetailPage() {
 
       {lightboxOpen && imageSrc && createPortal(
         <div
-          className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center cursor-zoom-out"
+          className={`fixed inset-0 z-50 bg-black/95 flex items-center justify-center cursor-zoom-out transition-opacity duration-300 ${lightboxVisible ? 'opacity-100' : 'opacity-0'}`}
           onClick={() => setLightboxOpen(false)}
           role="dialog"
           aria-modal="true"
@@ -340,7 +347,7 @@ export function PhotoDetailPage() {
           <img
             src={imageSrc}
             alt={photo.caption ?? 'Photo'}
-            className="max-h-[95vh] max-w-[95vw] object-contain select-none"
+            className={`max-h-[95vh] max-w-[95vw] object-contain select-none transition-all duration-300 ${lightboxVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
             onClick={(e) => e.stopPropagation()}
           />
         </div>,
@@ -512,6 +519,7 @@ function CommentItem({
     <div className="flex gap-2 group">
       <Link to="/users/$userId" params={{ userId: comment.userId }}>
         <Avatar className="h-8 w-8">
+          {comment.avatarUrl && <AvatarImage src={comment.avatarUrl} alt={comment.displayName} />}
           <AvatarFallback className="text-xs">
             {comment.displayName.charAt(0).toUpperCase()}
           </AvatarFallback>
@@ -573,6 +581,7 @@ function CommentItem({
               <div key={reply.id} className="flex gap-2 group/reply">
                 <Link to="/users/$userId" params={{ userId: reply.userId }}>
                   <Avatar className="h-6 w-6">
+                    {reply.avatarUrl && <AvatarImage src={reply.avatarUrl} alt={reply.displayName} />}
                     <AvatarFallback className="text-[10px]">
                       {reply.displayName.charAt(0).toUpperCase()}
                     </AvatarFallback>

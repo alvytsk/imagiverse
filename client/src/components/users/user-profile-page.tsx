@@ -1,18 +1,21 @@
 import { useParams } from '@tanstack/react-router';
-import { Camera, Heart, ImageIcon, Lock, MapPin } from 'lucide-react';
+import { Camera, Heart, ImageIcon, Lock, MapPin, Pencil } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { AlbumGrid } from '@/components/albums/album-grid';
 import { CreateAlbumDialog } from '@/components/albums/create-album-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { BlurhashImage } from '@/components/ui/blurhash-image';
+import { ImageCropDialog } from '@/components/ui/image-crop-dialog';
 import { TransitionLink } from '@/components/ui/transition-link';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useUser, useUserPhotos } from '@/hooks/use-users';
+import { useUser, useUserPhotos, useUploadAvatar, useUploadBanner } from '@/hooks/use-users';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
 
 type Tab = 'photos' | 'albums';
+
+type CropTarget = 'avatar' | 'banner' | null;
 
 export function UserProfilePage() {
   const { userId } = useParams({ from: '/users/$userId' });
@@ -22,6 +25,16 @@ export function UserProfilePage() {
 
   const [activeTab, setActiveTab] = useState<Tab>('photos');
   const [createAlbumOpen, setCreateAlbumOpen] = useState(false);
+
+  // Crop dialog state
+  const [cropTarget, setCropTarget] = useState<CropTarget>(null);
+  const [cropImageSrc, setCropImageSrc] = useState('');
+
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadAvatar = useUploadAvatar(userId);
+  const uploadBanner = useUploadBanner(userId);
 
   const {
     data: photosData,
@@ -53,6 +66,29 @@ export function UserProfilePage() {
     return () => observerRef.current?.disconnect();
   }, []);
 
+  function openFilePicker(target: CropTarget) {
+    if (target === 'avatar') avatarInputRef.current?.click();
+    else if (target === 'banner') bannerInputRef.current?.click();
+  }
+
+  function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>, target: CropTarget) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropImageSrc(reader.result as string);
+      setCropTarget(target);
+    };
+    reader.readAsDataURL(file);
+    // Reset input so the same file can be re-selected
+    e.target.value = '';
+  }
+
+  function handleCropComplete(blob: Blob) {
+    if (cropTarget === 'avatar') uploadAvatar.mutate(blob);
+    else if (cropTarget === 'banner') uploadBanner.mutate(blob);
+  }
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -69,18 +105,96 @@ export function UserProfilePage() {
 
   return (
     <div className="mx-auto max-w-4xl">
+      {/* Hidden file inputs */}
+      {isOwner && (
+        <>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic"
+            className="hidden"
+            onChange={(e) => handleFileSelected(e, 'avatar')}
+          />
+          <input
+            ref={bannerInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic"
+            className="hidden"
+            onChange={(e) => handleFileSelected(e, 'banner')}
+          />
+        </>
+      )}
+
+      {/* Crop dialog */}
+      {cropImageSrc && (
+        <ImageCropDialog
+          open={cropTarget !== null}
+          onOpenChange={(v) => { if (!v) setCropTarget(null); }}
+          imageSrc={cropImageSrc}
+          aspectRatio={cropTarget === 'avatar' ? 1 : 4}
+          circularCrop={cropTarget === 'avatar'}
+          onCropComplete={handleCropComplete}
+        />
+      )}
+
       {/* Banner */}
       <div className="relative mb-16">
-        <div className="h-32 rounded-2xl bg-gradient-to-r from-primary/20 via-primary/10 to-accent/20" />
+        <div className="h-32 rounded-2xl overflow-hidden bg-gradient-to-r from-primary/20 via-primary/10 to-accent/20">
+          {user.bannerUrl && (
+            <img
+              src={user.bannerUrl}
+              alt="Profile banner"
+              className="h-full w-full object-cover"
+            />
+          )}
+          {isOwner && (
+            <button
+              onClick={() => openFilePicker('banner')}
+              disabled={uploadBanner.isPending}
+              className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/30 transition-colors rounded-2xl group"
+              aria-label="Change banner"
+            >
+              <span className="flex items-center gap-1.5 text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-lg px-3 py-1.5 backdrop-blur-sm">
+                {uploadBanner.isPending ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                ) : (
+                  <Pencil className="h-4 w-4" />
+                )}
+                {uploadBanner.isPending ? 'Uploading…' : 'Change cover'}
+              </span>
+            </button>
+          )}
+        </div>
+
+        {/* Avatar */}
         <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 sm:left-8 sm:translate-x-0">
-          <Avatar className="h-28 w-28 ring-4 ring-background" style={{ viewTransitionName: `avatar-${userId}` }}>
-            {user.avatarUrl ? (
-              <AvatarImage src={user.avatarUrl} alt={user.displayName} />
-            ) : null}
-            <AvatarFallback className="text-3xl">
-              {user.displayName.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          <div className="relative group">
+            <Avatar
+              className="h-28 w-28 ring-4 ring-background"
+              style={{ viewTransitionName: `avatar-${userId}` }}
+            >
+              {user.avatarUrl ? (
+                <AvatarImage src={user.avatarUrl} alt={user.displayName} />
+              ) : null}
+              <AvatarFallback className="text-3xl">
+                {user.displayName.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            {isOwner && (
+              <button
+                onClick={() => openFilePicker('avatar')}
+                disabled={uploadAvatar.isPending}
+                className="absolute inset-0 flex items-center justify-center rounded-full bg-black/0 hover:bg-black/40 transition-colors"
+                aria-label="Change avatar"
+              >
+                {uploadAvatar.isPending ? (
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-white border-t-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                ) : (
+                  <Camera className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

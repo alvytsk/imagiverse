@@ -1,5 +1,12 @@
 import { Monitor, Moon, Sun } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useThemeStore } from '@/stores/theme-store';
 
 const modes = [
@@ -11,23 +18,27 @@ const modes = [
 export function ThemeToggle() {
   const { theme, setTheme } = useThemeStore();
 
+  const CurrentIcon = modes.find((m) => m.value === theme)?.icon ?? Monitor;
+
   return (
-    <div className="flex items-center gap-0.5 rounded-full bg-muted p-1">
-      {modes.map(({ value, icon: Icon, label }) => (
-        <button
-          key={value}
-          type="button"
-          onClick={() => setTheme(value)}
-          className={`rounded-full p-1.5 transition-all duration-200 ${
-            theme === value
-              ? 'bg-background shadow-sm text-foreground'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-          aria-label={label}
-        >
-          <Icon className="h-4 w-4" />
-        </button>
-      ))}
-    </div>
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Toggle theme">
+          <CurrentIcon className="h-5 w-5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {modes.map(({ value, icon: Icon, label }) => (
+          <DropdownMenuItem
+            key={value}
+            onClick={() => setTheme(value)}
+            className={theme === value ? 'bg-accent' : ''}
+          >
+            <Icon className="mr-2 h-4 w-4" />
+            {label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

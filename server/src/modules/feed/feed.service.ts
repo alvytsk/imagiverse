@@ -126,12 +126,13 @@ export async function getFeed(
   // Generate presigned URLs for thumbnails
   const feedItems: FeedItemResponse[] = await Promise.all(
     data.map(async (row) => {
-      const [small, medium, large] = await Promise.all([
+      const [small, medium, large, avatarUrl] = await Promise.all([
         row.thumbSmallKey ? getPresignedDownloadUrl(row.thumbSmallKey, PRESIGNED_URL_EXPIRY) : null,
         row.thumbMediumKey
           ? getPresignedDownloadUrl(row.thumbMediumKey, PRESIGNED_URL_EXPIRY)
           : null,
         row.thumbLargeKey ? getPresignedDownloadUrl(row.thumbLargeKey, PRESIGNED_URL_EXPIRY) : null,
+        row.authorAvatarUrl ? getPresignedDownloadUrl(row.authorAvatarUrl, PRESIGNED_URL_EXPIRY) : null,
       ]);
 
       const exif = row.exifData as ExifData | null;
@@ -163,7 +164,7 @@ export async function getFeed(
           id: row.authorId,
           username: row.authorUsername,
           displayName: row.authorDisplayName,
-          avatarUrl: row.authorAvatarUrl,
+          avatarUrl,
         },
       };
     })

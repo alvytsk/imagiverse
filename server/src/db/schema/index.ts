@@ -26,6 +26,7 @@ export const users = pgTable(
     city: text('city'),
     passwordHash: text('password_hash').notNull(),
     avatarUrl: text('avatar_url'),
+    bannerUrl: text('banner_url'),
     bio: text('bio'),
     role: text('role').notNull().default('user'),
     bannedAt: timestamp('banned_at', { withTimezone: true }),
