@@ -152,7 +152,7 @@ export function AlbumDetailPage() {
                   blurhash={photo.blurhash}
                   src={photo.thumbnails.medium ?? photo.thumbnails.small ?? ''}
                   alt={photo.caption ?? 'Photo'}
-                  className="h-full w-full transition-transform duration-300 group-hover:scale-105"
+                  className="h-full w-full rounded-xl transition-transform duration-300 group-hover:scale-105"
                   style={{ viewTransitionName: `photo-${photo.id}` }}
                 />
                 <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all duration-300 group-hover:bg-black/30">

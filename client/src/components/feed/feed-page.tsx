@@ -214,7 +214,7 @@ function FeedCard({ photo }: { photo: FeedItemResponse }) {
             blurhash={photo.blurhash}
             src={photo.thumbnails.medium ?? photo.thumbnails.small ?? ''}
             alt={photo.caption || `Photo by ${photo.author.displayName}`}
-            className="absolute inset-0 h-full w-full"
+            className="absolute inset-0 h-full w-full rounded-2xl"
             style={{ viewTransitionName: `photo-${photo.id}` }}
           />
           {cameraModel && (

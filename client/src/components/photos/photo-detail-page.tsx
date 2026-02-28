@@ -137,7 +137,7 @@ export function PhotoDetailPage() {
             <img
               src={imageSrc}
               alt={photo.caption ?? 'Photo'}
-              className={`max-w-full object-contain max-h-[80vh] md:max-h-full ${isProcessing ? 'opacity-60 blur-[2px]' : ''}`}
+              className={`max-w-full object-contain max-h-[80vh] md:max-h-full rounded-2xl ${isProcessing ? 'opacity-60 blur-[2px]' : ''}`}
               style={{ viewTransitionName: `photo-${photoId}` }}
             />
           ) : (
