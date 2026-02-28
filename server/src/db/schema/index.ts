@@ -46,6 +46,18 @@ export const users = pgTable(
 );
 
 // ============================================================================
+// Categories
+// ============================================================================
+export const categories = pgTable('categories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull().unique(),
+  slug: text('slug').notNull().unique(),
+  displayOrder: integer('display_order').notNull().default(0),
+  iconName: text('icon_name'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ============================================================================
 // Photos
 // ============================================================================
 export const photos = pgTable(
@@ -55,6 +67,7 @@ export const photos = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'set null' }),
     caption: text('caption'),
     status: text('status').notNull().default('processing'),
     originalKey: text('original_key').notNull(),
@@ -78,6 +91,7 @@ export const photos = pgTable(
     index('idx_photos_created').on(table.createdAt),
     index('idx_photos_status').on(table.status),
     index('idx_photos_visibility').on(table.visibility),
+    index('idx_photos_category').on(table.categoryId),
   ]
 );
 
@@ -236,8 +250,13 @@ export const usersRelations = relations(users, ({ many }) => ({
   reports: many(reports),
 }));
 
+export const categoriesRelations = relations(categories, ({ many }) => ({
+  photos: many(photos),
+}));
+
 export const photosRelations = relations(photos, ({ one, many }) => ({
   user: one(users, { fields: [photos.userId], references: [users.id] }),
+  category: one(categories, { fields: [photos.categoryId], references: [categories.id] }),
   likes: many(likes),
   comments: many(comments),
   feedScore: one(feedScores, { fields: [photos.id], references: [feedScores.photoId] }),

@@ -43,7 +43,7 @@ export function AlbumDetailPage() {
     if (album?.userId) {
       navigate({ to: '/users/$userId', params: { userId: album.userId } });
     } else {
-      navigate({ to: '/' });
+      navigate({ to: '/', search: { category: undefined } });
     }
   };
 

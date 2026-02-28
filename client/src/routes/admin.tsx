@@ -10,7 +10,7 @@ export const Route = createFileRoute('/admin')({
   beforeLoad: () => {
     const { isAuthenticated, user } = useAuthStore.getState();
     if (!isAuthenticated || user?.role !== 'admin') {
-      throw redirect({ to: '/' });
+      throw redirect({ to: '/', search: { category: undefined } });
     }
   },
   component: AdminPage,

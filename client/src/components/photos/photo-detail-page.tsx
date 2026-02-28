@@ -1,7 +1,7 @@
 import { Link, useParams, useRouter, useRouterState } from '@tanstack/react-router';
 import { TransitionLink } from '@/components/ui/transition-link';
 import type { CommentResponse } from 'imagiverse-shared';
-import { AlertTriangle, ChevronDown, ChevronUp, Eye, EyeOff, FolderPlus, Heart, Loader2, Lock, Maximize2, MessageCircle, Reply, SendHorizontal, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Eye, EyeOff, FolderPlus, Heart, Loader2, Lock, Maximize2, MessageCircle, Reply, SendHorizontal, Tag, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -19,9 +19,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Separator } from '@/components/ui/separator';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { useCategories } from '@/hooks/use-categories';
 import {
   useAddComment,
   useCommentReplies,
@@ -30,6 +38,7 @@ import {
   useLikePhoto,
   usePhoto,
   usePhotoComments,
+  useUpdateCategory,
   useUpdateVisibility,
 } from '@/hooks/use-photo';
 import { useUser } from '@/hooks/use-users';
@@ -55,6 +64,8 @@ export function PhotoDetailPage() {
   const lightboxTriggerRef = useRef<HTMLElement | null>(null);
   const deletePhoto = useDeletePhoto(photoId);
   const updateVisibility = useUpdateVisibility(photoId);
+  const updateCategory = useUpdateCategory(photoId);
+  const { data: categories } = useCategories();
   const router = useRouter();
 
   useEffect(() => {
@@ -129,50 +140,53 @@ export function PhotoDetailPage() {
   const displayLikes = photo.likeCount;
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="grid gap-6 md:grid-cols-[1fr_380px]">
-        <div
-          className={`overflow-hidden rounded-2xl bg-muted/20 relative flex items-center justify-center md:self-start ${!isProcessing && imageSrc ? 'cursor-zoom-in group' : ''}`}
-          onClick={(e) => {
-            if (!isProcessing && imageSrc) {
-              lightboxTriggerRef.current = e.currentTarget as HTMLElement;
-              setLightboxOpen(true);
-            }
-          }}
-        >
-          {imageSrc ? (
-            <img
-              src={imageSrc}
-              alt={photo.caption ?? 'Photo'}
-              className={`max-w-full object-contain max-h-[80vh] md:max-h-full rounded-2xl ${isProcessing ? 'opacity-60 blur-[2px]' : ''}`}
-              style={{ viewTransitionName: `photo-${photoId}` }}
-            />
-          ) : (
-            <Skeleton className="aspect-[4/3] w-full" />
-          )}
-          {photo.visibility === 'private' && (
-            <span className="absolute top-3 left-3 z-10 flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
-              <Lock className="h-3.5 w-3.5" />
-              Private
+    <div className="mx-auto max-w-6xl">
+      {/* ── Photo hero: cinema-stage presentation ── */}
+      <div
+        className={`relative overflow-hidden rounded-2xl bg-muted/50 dark:bg-black flex items-center justify-center shadow-[0_4px_32px_oklch(0_0_0/0.1)] dark:shadow-[0_4px_32px_oklch(0_0_0/0.4)] ${!isProcessing && imageSrc ? 'cursor-zoom-in group' : ''}`}
+        onClick={(e) => {
+          if (!isProcessing && imageSrc) {
+            lightboxTriggerRef.current = e.currentTarget as HTMLElement;
+            setLightboxOpen(true);
+          }
+        }}
+      >
+        {imageSrc ? (
+          <img
+            src={imageSrc}
+            alt={photo.caption ?? 'Photo'}
+            className={`w-full max-h-[76vh] object-contain ${isProcessing ? 'opacity-60 blur-[2px]' : ''}`}
+            style={{ viewTransitionName: `photo-${photoId}` }}
+          />
+        ) : (
+          <Skeleton className="aspect-[4/3] w-full" />
+        )}
+        {photo.visibility === 'private' && (
+          <span className="absolute top-3 left-3 z-10 flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
+            <Lock className="h-3.5 w-3.5" />
+            Private
+          </span>
+        )}
+        {isProcessing && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-white drop-shadow-lg" />
+            <span className="text-sm font-medium text-white drop-shadow-lg">
+              Processing your photo...
             </span>
-          )}
-          {isProcessing && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-white drop-shadow-lg" />
-              <span className="text-sm font-medium text-white drop-shadow-lg">
-                Processing your photo...
-              </span>
-            </div>
-          )}
-          {!isProcessing && imageSrc && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none">
-              <Maximize2 className="h-10 w-10 text-white opacity-0 group-hover:opacity-60 transition-opacity drop-shadow-lg" />
-            </div>
-          )}
-        </div>
+          </div>
+        )}
+        {!isProcessing && imageSrc && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none">
+            <Maximize2 className="h-10 w-10 text-white opacity-0 group-hover:opacity-60 transition-opacity drop-shadow-lg" />
+          </div>
+        )}
+      </div>
 
-        <div className="flex flex-col md:max-h-[85vh] md:min-h-0 md:overflow-hidden">
-          <div className="flex items-center gap-3 pb-4">
+      {/* ── Info + Comments two-column ── */}
+      <div className="grid gap-8 pt-8 lg:grid-cols-[2fr_3fr]">
+        {/* Left: photo metadata */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
             <TransitionLink to="/users/$userId" params={{ userId: photo.userId }}>
               <Avatar className="h-10 w-10" style={{ viewTransitionName: `avatar-${photo.userId}` }}>
                 {author?.avatarUrl ? (
@@ -200,12 +214,23 @@ export function PhotoDetailPage() {
           </div>
 
           {photo.caption && (
-            <p className="text-sm mb-4">{photo.caption}</p>
+            <p className="text-sm leading-relaxed">{photo.caption}</p>
+          )}
+
+          {photo.category && (
+            <Link
+              to="/"
+              search={{ category: photo.category.slug }}
+              className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/80 transition-colors"
+            >
+              <Tag className="h-3 w-3" />
+              {photo.category.name}
+            </Link>
           )}
 
           {photo.exifData && <ExifPanel exifData={photo.exifData} />}
 
-          <div className="flex items-center gap-4 pb-2">
+          <div className="flex items-center gap-4">
             <Button
               variant="ghost"
               size="sm"
@@ -231,7 +256,7 @@ export function PhotoDetailPage() {
           </div>
 
           {isAuthenticated && currentUserId === photo.userId && (
-            <div className="flex items-center gap-1 pb-4">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -256,6 +281,39 @@ export function PhotoDetailPage() {
                   <><Eye className="h-4 w-4 mr-1.5" />Make public</>
                 )}
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={updateCategory.isPending}
+                    aria-label="Set category"
+                  >
+                    <Tag className="h-4 w-4 mr-1.5" />
+                    {photo.category ? photo.category.name : 'Category'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuRadioGroup
+                    value={photo.category?.id ?? ''}
+                    onValueChange={(value) => {
+                      updateCategory.mutate(value === '' ? null : value, {
+                        onSuccess: () => {
+                          toast.success(value === '' ? 'Category removed' : 'Category updated');
+                        },
+                      });
+                    }}
+                  >
+                    <DropdownMenuRadioItem value="">No category</DropdownMenuRadioItem>
+                    {categories && categories.length > 0 && <DropdownMenuSeparator />}
+                    {categories?.map((cat) => (
+                      <DropdownMenuRadioItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="outline"
                 size="sm"
@@ -277,9 +335,10 @@ export function PhotoDetailPage() {
               </Button>
             </div>
           )}
+        </div>
 
-          <Separator />
-
+        {/* Right: discussion */}
+        <div>
           <CommentsSection photoId={photoId} />
         </div>
       </div>
@@ -312,7 +371,7 @@ export function PhotoDetailPage() {
                     if (window.history.length > 1) {
                       router.history.back();
                     } else {
-                      router.navigate({ to: '/' });
+                      router.navigate({ to: '/', search: { category: undefined } });
                     }
                   }}
                   disabled={deletePhoto.isPending}
@@ -387,8 +446,8 @@ function CommentsSection({ photoId }: { photoId: string }) {
   const comments = data?.pages.flatMap((p) => p.data) ?? [];
 
   return (
-    <div className="flex flex-col flex-1 pt-4 md:min-h-0">
-      <div className="flex-1 space-y-3 overflow-y-auto max-h-[400px] md:max-h-full min-h-0 mb-4">
+    <div className="flex flex-col gap-4">
+      <div className="space-y-3">
         {isLoading && (
           <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -624,19 +683,31 @@ function CommentItem({
 
 function PhotoDetailSkeleton() {
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="grid gap-6 md:grid-cols-[1fr_380px]">
-        <Skeleton className="aspect-square rounded-2xl" />
+    <div className="mx-auto max-w-6xl space-y-8">
+      <Skeleton className="w-full rounded-2xl" style={{ paddingBottom: '52%' }} />
+      <div className="grid gap-8 lg:grid-cols-[2fr_3fr]">
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <Skeleton className="h-10 w-10 rounded-full" />
-            <div className="space-y-1">
-              <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-10 w-10 rounded-full shrink-0" />
+            <div className="space-y-1.5">
+              <Skeleton className="h-4 w-28" />
               <Skeleton className="h-3 w-16" />
             </div>
           </div>
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-7 w-24 rounded-full" />
+          <Skeleton className="h-24 w-full rounded-lg" />
+        </div>
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex gap-2">
+              <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+              <div className="flex-1 space-y-1">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-12 w-full rounded-2xl" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

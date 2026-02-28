@@ -48,6 +48,11 @@ export interface ExifSummary {
     iso: number | null;
     exposureTime: string | null;
 }
+export interface PhotoCategorySummary {
+    id: string;
+    name: string;
+    slug: string;
+}
 export interface PhotoResponse {
     id: string;
     userId: string;
@@ -62,6 +67,7 @@ export interface PhotoResponse {
     commentCount: number;
     likedByMe: boolean;
     exifData: ExifData | null;
+    category: PhotoCategorySummary | null;
     createdAt: string;
     updatedAt: string;
 }

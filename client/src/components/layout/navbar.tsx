@@ -23,7 +23,7 @@ export function Navbar() {
 
   const handleLogout = useCallback(async () => {
     await logout();
-    navigate({ to: '/' });
+    navigate({ to: '/', search: { category: undefined } });
   }, [logout, navigate]);
 
   return (

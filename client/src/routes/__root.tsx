@@ -21,7 +21,7 @@ function RootLayout() {
       <ErrorBoundary>
         <div className="flex min-h-screen flex-col bg-background">
           <Navbar />
-          <main className="container mx-auto flex-1 px-4 py-6 pb-16">
+          <main className="container mx-auto flex-1 px-4 py-8 pb-16">
             <Suspense
               fallback={
                 <div className="flex justify-center py-20">

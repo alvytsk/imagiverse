@@ -38,7 +38,7 @@ export function LoginPage() {
     try {
       await login(data);
       toast.success('Welcome back!');
-      navigate({ to: '/' });
+      navigate({ to: '/', search: { category: undefined } });
     } catch (err) {
       if (err instanceof ApiClientError) {
         toast.error(err.message);

@@ -1,13 +1,15 @@
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import type { ExifSummary, FeedItemResponse } from 'imagiverse-shared';
 import { Camera, Heart, MessageCircle } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { CategoryFilterBar } from '@/components/feed/category-filter-bar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { BlurhashImage } from '@/components/ui/blurhash-image';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TransitionLink } from '@/components/ui/transition-link';
+import { useCategories } from '@/hooks/use-categories';
 import { useFeed } from '@/hooks/use-feed';
 import { useAuthStore } from '@/stores/auth-store';
 
@@ -81,10 +83,20 @@ function distributeToColumns<
 // ── Feed page ───────────────────────────────────────────────────────────────
 
 export function FeedPage() {
+  const { category: selectedCategory } = useSearch({ from: '/' });
+  const navigate = useNavigate();
+  const { data: categoriesList } = useCategories();
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error } =
-    useFeed();
+    useFeed(20, selectedCategory);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const columnCount = useColumnCount();
+
+  const setSelectedCategory = useCallback(
+    (slug: string | undefined) => {
+      navigate({ to: '/', search: { category: slug }, replace: true });
+    },
+    [navigate],
+  );
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useCallback(
@@ -150,9 +162,16 @@ export function FeedPage() {
 
   return (
     <div>
-      <div className="flex gap-4">
+      {categoriesList && categoriesList.length > 0 && (
+        <CategoryFilterBar
+          categories={categoriesList}
+          selected={selectedCategory}
+          onSelect={setSelectedCategory}
+        />
+      )}
+      <div className="flex gap-5">
         {columns.map((col, colIdx) => (
-          <div key={colIdx} className="flex-1 space-y-4">
+          <div key={colIdx} className="flex-1 space-y-5">
             {col.map((photo) => (
               <FeedCard key={photo.id} photo={photo} />
             ))}
@@ -234,7 +253,7 @@ function FeedCard({ photo }: { photo: FeedItemResponse }) {
             </span>
           </div>
         </div>
-        <div className="border-t border-border/50 px-3 py-2.5">
+        <div className="border-t border-border/50 px-3 py-3">
           <div className="flex items-center gap-2">
             <Avatar className="h-6 w-6">
               {photo.author.avatarUrl ? (
@@ -271,9 +290,9 @@ function FeedSkeleton({ columnCount }: { columnCount: number }) {
   }, [columnCount]);
 
   return (
-    <div className="flex gap-4">
+    <div className="flex gap-5">
       {cols.map((col, colIdx) => (
-        <div key={colIdx} className="flex-1 space-y-4">
+        <div key={colIdx} className="flex-1 space-y-5">
           {col.map((i) => (
             <div key={i} className="overflow-hidden rounded-2xl bg-card shadow-sm">
               <Skeleton

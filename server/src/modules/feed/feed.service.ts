@@ -1,7 +1,8 @@
 import { and, desc, eq, lt, or } from 'drizzle-orm';
-import type { ExifData, ExifSummary, FeedItemResponse, PaginatedResponse } from 'imagiverse-shared';
+import type { ExifData, ExifSummary, FeedItemResponse, PaginatedResponse, PhotoCategorySummary } from 'imagiverse-shared';
 import { db } from '../../db/index';
-import { feedScores, photos, users } from '../../db/schema/index';
+import { categories, feedScores, photos, users } from '../../db/schema/index';
+import { getCategoryBySlug } from '../categories/categories.service';
 import { getUserLikedPhotoIds } from '../likes/likes.service';
 import { redis } from '../../plugins/redis';
 import { getPresignedDownloadUrl } from '../../plugins/s3';
@@ -39,8 +40,8 @@ function decodeCursor(cursor: string): FeedCursor | null {
 
 // ── Redis cache helpers ──────────────────────────────────────────────────────
 
-function feedCacheKey(cursor: string | undefined, limit: number): string {
-  return `feed:page:${cursor ?? 'first'}:${limit}`;
+function feedCacheKey(cursor: string | undefined, limit: number, categorySlug?: string): string {
+  return `feed:page:${cursor ?? 'first'}:${limit}:${categorySlug ?? 'all'}`;
 }
 
 // ── Feed query ───────────────────────────────────────────────────────────────
@@ -48,12 +49,23 @@ function feedCacheKey(cursor: string | undefined, limit: number): string {
 export async function getFeed(
   cursor?: string,
   limit?: number,
-  currentUserId?: string
+  currentUserId?: string,
+  categorySlug?: string
 ): Promise<PaginatedResponse<FeedItemResponse>> {
   const pageLimit = Math.min(Math.max(limit ?? DEFAULT_PAGE_LIMIT, 1), MAX_PAGE_LIMIT);
 
+  // Resolve category slug to ID
+  let filterCategoryId: string | undefined;
+  if (categorySlug) {
+    const cat = await getCategoryBySlug(categorySlug);
+    if (!cat) {
+      return { data: [], pagination: { nextCursor: null, hasMore: false } };
+    }
+    filterCategoryId = cat.id;
+  }
+
   // Check Redis cache for first page (no cursor)
-  const cacheKey = feedCacheKey(cursor, pageLimit);
+  const cacheKey = feedCacheKey(cursor, pageLimit, categorySlug);
   if (!cursor) {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -84,7 +96,11 @@ export async function getFeed(
     }
   }
 
-  const baseCondition = and(eq(photos.status, 'ready'), eq(photos.visibility, 'public'));
+  const conditions = [eq(photos.status, 'ready'), eq(photos.visibility, 'public')];
+  if (filterCategoryId) {
+    conditions.push(eq(photos.categoryId, filterCategoryId));
+  }
+  const baseCondition = and(...conditions);
   const whereConditions = cursorCondition ? and(baseCondition, cursorCondition) : baseCondition;
 
   const rows = await db
@@ -107,10 +123,14 @@ export async function getFeed(
       authorUsername: users.username,
       authorDisplayName: users.displayName,
       authorAvatarUrl: users.avatarUrl,
+      categoryId: photos.categoryId,
+      categoryName: categories.name,
+      categorySlug: categories.slug,
     })
     .from(feedScores)
     .innerJoin(photos, eq(feedScores.photoId, photos.id))
     .innerJoin(users, eq(photos.userId, users.id))
+    .leftJoin(categories, eq(photos.categoryId, categories.id))
     .where(whereConditions)
     .orderBy(desc(feedScores.score), desc(feedScores.photoId))
     .limit(pageLimit + 1);
@@ -146,6 +166,11 @@ export async function getFeed(
           }
         : null;
 
+      const category: PhotoCategorySummary | null =
+        row.categoryId && row.categoryName && row.categorySlug
+          ? { id: row.categoryId, name: row.categoryName, slug: row.categorySlug }
+          : null;
+
       return {
         id: row.id,
         userId: row.userId,
@@ -158,6 +183,7 @@ export async function getFeed(
         commentCount: row.commentCount,
         likedByMe: likedSet.has(row.id),
         exifSummary,
+        category,
         score: row.score,
         createdAt: row.createdAt.toISOString(),
         author: {

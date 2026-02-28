@@ -206,6 +206,7 @@ export async function getAlbumPhotos(albumId: string): Promise<PhotoResponse[]> 
         commentCount: row.commentCount,
         likedByMe: false,
         exifData: (row.exifData as ExifData) ?? null,
+        category: null,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
       };

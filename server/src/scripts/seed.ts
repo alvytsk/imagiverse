@@ -24,7 +24,7 @@ import sanitizeHtml from 'sanitize-html';
 import { env } from '../config/env';
 import * as schema from '../db/schema/index';
 
-const { users, photos, likes, comments, feedScores, notifications, albums, albumPhotos } = schema;
+const { users, photos, likes, comments, feedScores, notifications, albums, albumPhotos, categories } = schema;
 
 const SEED_PASSWORD = 'Password1!';
 const USER_COUNT = 100;
@@ -86,7 +86,7 @@ async function seed() {
   try {
     // ── Truncate ──────────────────────────────────────────────────────────────
     console.log('Truncating existing data...');
-    await db.execute(sql`TRUNCATE notifications, album_photos, albums, reports, feed_scores, comments, likes, photos, users CASCADE`);
+    await db.execute(sql`TRUNCATE notifications, album_photos, albums, reports, feed_scores, comments, likes, photos, categories, users CASCADE`);
 
     // ── Users ─────────────────────────────────────────────────────────────────
     console.log(`Creating ${USER_COUNT} users...`);
@@ -110,15 +110,38 @@ async function seed() {
     const userIds = insertedUsers.map((u) => u.id);
     console.log(`  Created ${userIds.length} users.`);
 
+    // ── Categories ─────────────────────────────────────────────────────────────
+    console.log('Inserting categories...');
+    const categoryValues = [
+      { name: 'Landscape', slug: 'landscape', displayOrder: 1 },
+      { name: 'Portrait', slug: 'portrait', displayOrder: 2 },
+      { name: 'Street', slug: 'street', displayOrder: 3 },
+      { name: 'Wildlife', slug: 'wildlife', displayOrder: 4 },
+      { name: 'Architecture', slug: 'architecture', displayOrder: 5 },
+      { name: 'Nature', slug: 'nature', displayOrder: 6 },
+      { name: 'Abstract', slug: 'abstract', displayOrder: 7 },
+      { name: 'Black & White', slug: 'black-and-white', displayOrder: 8 },
+      { name: 'Travel', slug: 'travel', displayOrder: 9 },
+      { name: 'Other', slug: 'other', displayOrder: 10 },
+    ];
+    const insertedCategories = await db.insert(categories).values(categoryValues).returning({ id: categories.id });
+    const categoryIds = insertedCategories.map((c) => c.id);
+    console.log(`  Created ${categoryIds.length} categories.`);
+
     // ── Photos ────────────────────────────────────────────────────────────────
     console.log(`Creating ${PHOTO_COUNT} photos...`);
 
     const photoValues = Array.from({ length: PHOTO_COUNT }, () => {
       const userId = userIds[Math.floor(Math.random() * userIds.length)];
       const photoId = crypto.randomUUID();
+      // 80% of photos get a category, 20% are uncategorized
+      const categoryId = Math.random() < 0.8
+        ? categoryIds[Math.floor(Math.random() * categoryIds.length)]
+        : null;
       return {
         id: photoId,
         userId,
+        categoryId,
         caption: sanitizeHtml(faker.lorem.sentence(), { allowedTags: [], allowedAttributes: {} }),
         status: 'ready' as const,
         originalKey: `originals/${userId}/${photoId}.jpg`,
@@ -279,6 +302,7 @@ async function seed() {
     console.log(
       `  ${USER_COUNT} users (login: user1@example.com / ${SEED_PASSWORD}; user1 is admin)`
     );
+    console.log(`  ${categoryIds.length} categories`);
     console.log(`  ${PHOTO_COUNT} photos`);
     console.log(`  ${likeValues.length} likes`);
     console.log(`  ${COMMENT_COUNT} comments`);

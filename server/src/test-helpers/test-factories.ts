@@ -10,6 +10,7 @@ import { eq, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import type { NotificationPayload, NotificationType } from 'imagiverse-shared';
 import {
+  categories,
   comments,
   feedScores,
   likes,
@@ -76,12 +77,48 @@ export async function createTestUser(
   return { ...user, password };
 }
 
+export interface TestCategory {
+  id: string;
+  name: string;
+  slug: string;
+  displayOrder: number;
+}
+
+export async function createTestCategory(
+  db: IntegrationContext['db'],
+  overrides: Partial<{
+    name: string;
+    slug: string;
+    displayOrder: number;
+    iconName: string | null;
+  }> = {}
+): Promise<TestCategory> {
+  const name = overrides.name ?? faker.lorem.word();
+  const [category] = await db
+    .insert(categories)
+    .values({
+      name,
+      slug: overrides.slug ?? name.toLowerCase().replace(/\s+/g, '-'),
+      displayOrder: overrides.displayOrder ?? 0,
+      iconName: overrides.iconName ?? null,
+    })
+    .returning({
+      id: categories.id,
+      name: categories.name,
+      slug: categories.slug,
+      displayOrder: categories.displayOrder,
+    });
+
+  return category;
+}
+
 export interface TestPhoto {
   id: string;
   userId: string;
   caption: string | null;
   status: string;
   originalKey: string;
+  categoryId: string | null;
 }
 
 export async function createTestPhoto(
@@ -96,6 +133,7 @@ export async function createTestPhoto(
     thumbLargeKey: string | null;
     width: number | null;
     height: number | null;
+    categoryId: string | null;
   }> = {}
 ): Promise<TestPhoto> {
   const photoId = crypto.randomUUID();
@@ -104,6 +142,7 @@ export async function createTestPhoto(
     .values({
       id: photoId,
       userId,
+      categoryId: overrides.categoryId !== undefined ? overrides.categoryId : null,
       caption: overrides.caption !== undefined ? overrides.caption : faker.lorem.sentence(),
       status: overrides.status ?? 'ready',
       originalKey: overrides.originalKey ?? `originals/${userId}/${photoId}.jpg`,
@@ -130,6 +169,7 @@ export async function createTestPhoto(
       caption: photos.caption,
       status: photos.status,
       originalKey: photos.originalKey,
+      categoryId: photos.categoryId,
     });
 
   return photo;

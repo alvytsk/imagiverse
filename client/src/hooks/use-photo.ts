@@ -232,6 +232,26 @@ export function useDeletePhoto(photoId: string) {
   });
 }
 
+export function useUpdateCategory(photoId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (categoryId: string | null) =>
+      api.patch<PhotoResponse>(`/photos/${photoId}/category`, { categoryId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['photos', photoId] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+    },
+    onError: (err) => {
+      if (err instanceof ApiClientError) {
+        toast.error(err.message);
+      } else {
+        toast.error('Failed to update category');
+      }
+    },
+  });
+}
+
 export function useDeleteComment(photoId: string) {
   const queryClient = useQueryClient();
 

@@ -1,4 +1,4 @@
-import type { ExifSummary, PhotoThumbnails } from './photos';
+import type { ExifSummary, PhotoCategorySummary, PhotoThumbnails } from './photos';
 
 export interface FeedItemResponse {
   id: string;
@@ -12,6 +12,7 @@ export interface FeedItemResponse {
   commentCount: number;
   likedByMe: boolean;
   exifSummary: ExifSummary | null;
+  category: PhotoCategorySummary | null;
   score: number;
   createdAt: string;
   author: {
