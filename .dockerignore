@@ -35,6 +35,11 @@ out
 # Testing
 coverage
 .nyc_output
+e2e
+
+# Playwright artifacts
+playwright-report
+test-results
 
 # Docker (no recursive inclusion)
 docker/Dockerfile*
@@ -62,7 +67,13 @@ package-lock.json
 yarn.lock
 bun.lock
 
+# Claude Code
+.claude
+
 # Temporary
 tmp
 temp
 .cache
+
+# pnpm store
+.pnpm-store
