@@ -1,10 +1,11 @@
 import { useNavigate, useParams } from '@tanstack/react-router';
-import { ArrowLeft, Heart, Pencil, Trash2, X } from 'lucide-react';
+import { Heart, Pencil, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 
 import { EditAlbumDialog } from '@/components/albums/edit-album-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { BlurhashImage } from '@/components/ui/blurhash-image';
+import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { TransitionLink } from '@/components/ui/transition-link';
 import { Button } from '@/components/ui/button';
 import {
@@ -61,17 +62,18 @@ export function AlbumDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
+      <Breadcrumbs
+        items={[
+          {
+            label: author?.displayName ?? 'User',
+            to: '/users/$userId',
+            params: { userId: album.userId },
+          },
+          { label: album.name },
+        ]}
+      />
       {/* Header */}
       <div className="mb-6 space-y-4">
-        <TransitionLink
-          to="/users/$userId"
-          params={{ userId: album.userId }}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to profile
-        </TransitionLink>
-
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold truncate">{album.name}</h1>
@@ -223,8 +225,14 @@ export function AlbumDetailPage() {
 function AlbumDetailSkeleton() {
   return (
     <div className="mx-auto max-w-4xl">
+      <div className="mb-6 flex items-center gap-1">
+        <Skeleton className="h-3.5 w-3.5 rounded" />
+        <Skeleton className="h-3.5 w-3.5 rounded" />
+        <Skeleton className="h-4 w-20 rounded" />
+        <Skeleton className="h-3.5 w-3.5 rounded" />
+        <Skeleton className="h-4 w-28 rounded" />
+      </div>
       <div className="mb-6 space-y-4">
-        <Skeleton className="h-4 w-28" />
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-4 w-48" />
         <div className="flex items-center gap-3">

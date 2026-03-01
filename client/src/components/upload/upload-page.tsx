@@ -6,6 +6,7 @@ import { Eye, EyeOff, ImagePlus, Upload, X } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -133,6 +134,7 @@ export function UploadPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
+      <Breadcrumbs items={[{ label: 'Upload' }]} />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

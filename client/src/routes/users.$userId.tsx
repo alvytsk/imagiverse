@@ -8,5 +8,8 @@ const UserProfilePage = lazy(() =>
 );
 
 export const Route = createFileRoute('/users/$userId')({
+  validateSearch: (search: Record<string, unknown>): { tab?: 'albums' } => ({
+    tab: search.tab === 'albums' ? 'albums' : undefined,
+  }),
   component: UserProfilePage,
 });

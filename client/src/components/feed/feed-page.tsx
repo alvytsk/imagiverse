@@ -12,6 +12,7 @@ import { TransitionLink } from '@/components/ui/transition-link';
 import { useCategories } from '@/hooks/use-categories';
 import { useFeed } from '@/hooks/use-feed';
 import { useAuthStore } from '@/stores/auth-store';
+import { usePhotoNavigationStore } from '@/stores/photo-navigation-store';
 
 // ── Responsive column count (matches Tailwind sm/lg/xl breakpoints) ─────────
 
@@ -90,6 +91,7 @@ export function FeedPage() {
     useFeed(20, selectedCategory);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const columnCount = useColumnCount();
+  const setNavigation = usePhotoNavigationStore((s) => s.setNavigation);
 
   const setSelectedCategory = useCallback(
     (slug: string | undefined) => {
@@ -129,6 +131,14 @@ export function FeedPage() {
     () => distributeToColumns(photos, columnCount),
     [photos, columnCount],
   );
+
+  // Snapshot the current feed order so detail-page arrows stay stable even after likes/refetches.
+  const handlePhotoClick = useCallback(() => {
+    setNavigation(
+      photos.map((p) => p.id),
+      `feed:${selectedCategory ?? 'all'}`,
+    );
+  }, [photos, selectedCategory, setNavigation]);
 
   if (error) {
     return (
@@ -173,7 +183,7 @@ export function FeedPage() {
         {columns.map((col, colIdx) => (
           <div key={colIdx} className="flex-1 space-y-5">
             {col.map((photo) => (
-              <FeedCard key={photo.id} photo={photo} />
+              <FeedCard key={photo.id} photo={photo} onNavigate={handlePhotoClick} />
             ))}
           </div>
         ))}
@@ -213,7 +223,7 @@ function formatShootingSettings(exif: ExifSummary): string | null {
 
 // ── FeedCard ────────────────────────────────────────────────────────────────
 
-function FeedCard({ photo }: { photo: FeedItemResponse }) {
+function FeedCard({ photo, onNavigate }: { photo: FeedItemResponse; onNavigate?: () => void }) {
   const aspectRatio =
     photo.width && photo.height ? photo.height / photo.width : 1;
   const paddingBottom = `${Math.min(aspectRatio * 100, 150)}%`;
@@ -226,6 +236,7 @@ function FeedCard({ photo }: { photo: FeedItemResponse }) {
       <TransitionLink
         to="/photos/$photoId"
         params={{ photoId: photo.id }}
+        onClick={onNavigate}
         className="group block overflow-hidden rounded-2xl bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
       >
         <div className="relative" style={{ paddingBottom }}>

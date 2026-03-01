@@ -1,10 +1,11 @@
-import { useParams } from '@tanstack/react-router';
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { Camera, Heart, ImageIcon, Lock, MapPin, Pencil } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { AlbumGrid } from '@/components/albums/album-grid';
 import { CreateAlbumDialog } from '@/components/albums/create-album-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { BlurhashImage } from '@/components/ui/blurhash-image';
 import { ImageCropDialog } from '@/components/ui/image-crop-dialog';
 import { TransitionLink } from '@/components/ui/transition-link';
@@ -23,7 +24,16 @@ export function UserProfilePage() {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const isOwner = !!currentUserId && currentUserId === userId;
 
-  const [activeTab, setActiveTab] = useState<Tab>('photos');
+  const { tab } = useSearch({ from: '/users/$userId' });
+  const activeTab: Tab = tab ?? 'photos';
+  const navigate = useNavigate();
+  const setActiveTab = (next: Tab) =>
+    navigate({
+      to: '/users/$userId',
+      params: { userId },
+      search: { tab: next === 'photos' ? undefined : next },
+      replace: true,
+    });
   const [createAlbumOpen, setCreateAlbumOpen] = useState(false);
 
   // Crop dialog state
@@ -105,6 +115,7 @@ export function UserProfilePage() {
 
   return (
     <div className="mx-auto max-w-4xl">
+      <Breadcrumbs items={[{ label: user.displayName }]} />
       {/* Hidden file inputs */}
       {isOwner && (
         <>
@@ -339,6 +350,11 @@ function TabButton({
 function ProfileSkeleton() {
   return (
     <div className="mx-auto max-w-4xl">
+      <div className="mb-6 flex items-center gap-1">
+        <Skeleton className="h-3.5 w-3.5 rounded" />
+        <Skeleton className="h-3.5 w-3.5 rounded" />
+        <Skeleton className="h-4 w-24 rounded" />
+      </div>
       <div className="relative mb-16">
         <Skeleton className="h-32 rounded-2xl" />
         <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 sm:left-8 sm:translate-x-0">

@@ -1,7 +1,7 @@
 import { Link, useParams, useRouter, useRouterState } from '@tanstack/react-router';
 import { TransitionLink } from '@/components/ui/transition-link';
 import type { CommentResponse } from 'imagiverse-shared';
-import { AlertTriangle, ChevronDown, ChevronUp, Eye, EyeOff, FolderPlus, Heart, Loader2, Lock, Maximize2, MessageCircle, Reply, SendHorizontal, Tag, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, EyeOff, FolderPlus, Heart, Loader2, Lock, Maximize2, MessageCircle, Reply, SendHorizontal, Tag, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ import { AddToAlbumDialog } from '@/components/albums/add-to-album-dialog';
 import { ExifPanel } from '@/components/photos/exif-panel';
 import { ReportDialog } from '@/components/photos/report-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -44,6 +45,7 @@ import {
 import { useUser } from '@/hooks/use-users';
 import { timeAgo } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
+import { usePhotoNavigationStore } from '@/stores/photo-navigation-store';
 
 export function PhotoDetailPage() {
   const { photoId } = useParams({ from: '/photos/$photoId' });
@@ -68,6 +70,17 @@ export function PhotoDetailPage() {
   const { data: categories } = useCategories();
   const router = useRouter();
 
+  // ── Session-stable prev/next navigation ─────────────────────────────────
+  const photoIds = usePhotoNavigationStore((s) => s.photoIds);
+  const sourceKey = usePhotoNavigationStore((s) => s.sourceKey);
+  const feedCategory =
+    sourceKey?.startsWith('feed:') && sourceKey.slice(5) !== 'all'
+      ? sourceKey.slice(5)
+      : undefined;
+  const currentIndex = photoIds.indexOf(photoId);
+  const prevId = currentIndex > 0 ? photoIds[currentIndex - 1] : null;
+  const nextId = currentIndex < photoIds.length - 1 ? photoIds[currentIndex + 1] : null;
+
   useEffect(() => {
     if (!lightboxOpen) {
       setLightboxVisible(false);
@@ -88,6 +101,23 @@ export function PhotoDetailPage() {
       lightboxTriggerRef.current?.focus();
     };
   }, [lightboxOpen]);
+
+  // Keyboard arrow navigation between photos (skip when lightbox is open or focus is in a text field)
+  useEffect(() => {
+    if (!prevId && !nextId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (lightboxOpen) return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+      if (e.key === 'ArrowLeft' && prevId) {
+        router.navigate({ to: '/photos/$photoId', params: { photoId: prevId } });
+      } else if (e.key === 'ArrowRight' && nextId) {
+        router.navigate({ to: '/photos/$photoId', params: { photoId: nextId } });
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [prevId, nextId, lightboxOpen, router]);
 
   if (error) {
     return (
@@ -141,44 +171,72 @@ export function PhotoDetailPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
+      <Breadcrumbs
+        homeSearch={feedCategory ? { category: feedCategory } : undefined}
+        items={[{ label: photo.caption ?? 'Photo' }]}
+      />
       {/* ── Photo hero: cinema-stage presentation ── */}
-      <div
-        className={`relative overflow-hidden rounded-2xl bg-muted/50 dark:bg-black flex items-center justify-center shadow-[0_4px_32px_oklch(0_0_0/0.1)] dark:shadow-[0_4px_32px_oklch(0_0_0/0.4)] ${!isProcessing && imageSrc ? 'cursor-zoom-in group' : ''}`}
-        onClick={(e) => {
-          if (!isProcessing && imageSrc) {
-            lightboxTriggerRef.current = e.currentTarget as HTMLElement;
-            setLightboxOpen(true);
-          }
-        }}
-      >
-        {imageSrc ? (
-          <img
-            src={imageSrc}
-            alt={photo.caption ?? 'Photo'}
-            className={`w-full max-h-[76vh] object-contain ${isProcessing ? 'opacity-60 blur-[2px]' : ''}`}
-            style={{ viewTransitionName: `photo-${photoId}` }}
-          />
-        ) : (
-          <Skeleton className="aspect-[4/3] w-full" />
-        )}
-        {photo.visibility === 'private' && (
-          <span className="absolute top-3 left-3 z-10 flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
-            <Lock className="h-3.5 w-3.5" />
-            Private
-          </span>
-        )}
-        {isProcessing && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-white drop-shadow-lg" />
-            <span className="text-sm font-medium text-white drop-shadow-lg">
-              Processing your photo...
+      <div className="relative group/nav">
+        <div
+          className={`relative overflow-hidden rounded-2xl bg-muted/50 dark:bg-black flex items-center justify-center shadow-[0_4px_32px_oklch(0_0_0/0.1)] dark:shadow-[0_4px_32px_oklch(0_0_0/0.4)] ${!isProcessing && imageSrc ? 'cursor-zoom-in group' : ''}`}
+          onClick={(e) => {
+            if (!isProcessing && imageSrc) {
+              lightboxTriggerRef.current = e.currentTarget as HTMLElement;
+              setLightboxOpen(true);
+            }
+          }}
+        >
+          {imageSrc ? (
+            <img
+              src={imageSrc}
+              alt={photo.caption ?? 'Photo'}
+              className={`w-full max-h-[76vh] object-contain ${isProcessing ? 'opacity-60 blur-[2px]' : ''}`}
+              style={{ viewTransitionName: `photo-${photoId}` }}
+            />
+          ) : (
+            <Skeleton className="aspect-[4/3] w-full" />
+          )}
+          {photo.visibility === 'private' && (
+            <span className="absolute top-3 left-3 z-10 flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
+              <Lock className="h-3.5 w-3.5" />
+              Private
             </span>
-          </div>
+          )}
+          {isProcessing && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-white drop-shadow-lg" />
+              <span className="text-sm font-medium text-white drop-shadow-lg">
+                Processing your photo...
+              </span>
+            </div>
+          )}
+          {!isProcessing && imageSrc && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none">
+              <Maximize2 className="h-10 w-10 text-white opacity-0 group-hover:opacity-60 transition-opacity drop-shadow-lg" />
+            </div>
+          )}
+        </div>
+
+        {/* ── Prev / Next arrows ── */}
+        {prevId && (
+          <button
+            type="button"
+            onClick={() => router.navigate({ to: '/photos/$photoId', params: { photoId: prevId } })}
+            className="absolute left-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center h-10 w-10 rounded-full bg-black/40 text-white backdrop-blur-sm opacity-0 group-hover/nav:opacity-100 transition-opacity hover:bg-black/60 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            aria-label="Previous photo"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
         )}
-        {!isProcessing && imageSrc && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none">
-            <Maximize2 className="h-10 w-10 text-white opacity-0 group-hover:opacity-60 transition-opacity drop-shadow-lg" />
-          </div>
+        {nextId && (
+          <button
+            type="button"
+            onClick={() => router.navigate({ to: '/photos/$photoId', params: { photoId: nextId } })}
+            className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center h-10 w-10 rounded-full bg-black/40 text-white backdrop-blur-sm opacity-0 group-hover/nav:opacity-100 transition-opacity hover:bg-black/60 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            aria-label="Next photo"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
         )}
       </div>
 
@@ -684,6 +742,11 @@ function CommentItem({
 function PhotoDetailSkeleton() {
   return (
     <div className="mx-auto max-w-6xl space-y-8">
+      <div className="flex items-center gap-1">
+        <Skeleton className="h-3.5 w-3.5 rounded" />
+        <Skeleton className="h-3.5 w-3.5 rounded" />
+        <Skeleton className="h-4 w-32 rounded" />
+      </div>
       <Skeleton className="w-full rounded-2xl" style={{ paddingBottom: '52%' }} />
       <div className="grid gap-8 lg:grid-cols-[2fr_3fr]">
         <div className="space-y-4">

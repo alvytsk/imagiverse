@@ -6,7 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Imagiverse is a photo gallery platform. Users upload photos, browse a ranked public feed, like/comment on photos, and search for users.
 
-Full architecture and phase roadmap live in `docs/DEVELOPMENT_PLAN.md`. **All MVP epics (M1–M9) are complete.**
+Full architecture and phase roadmap live in `docs/DEVELOPMENT_PLAN.md`.
+
+**Phase status:**
+- MVP (M1–M9): ✅ complete
+- V1.1 Production Hardening: ✅ complete (PgBouncer support, structured logging, graceful shutdown, health checks)
+- V1.3 Notifications: ✅ complete
+- V1.2 Admin & Moderation, V1.4 UX Polish, V1.5 Performance, V1.6 Observability, V1.7 Security Hardening: in backlog
 
 ## Monorepo Structure
 
@@ -158,6 +164,42 @@ server/src/
     seed.ts              — DB seed script (100 users, 1000 photos, interactions)
 ```
 
+### Client package layout
+
+```
+client/src/
+  routes/                    — TanStack Router file-based routes
+    __root.tsx               — root layout (nav, auth init, theme)
+    index.tsx                — feed page (/)
+    photos.$photoId.tsx      — photo detail (/photos/:photoId)
+    users.$userId.tsx        — user profile (/users/:userId)
+    upload.tsx               — upload page
+    ...
+  components/
+    feed/feed-page.tsx       — masonry feed with infinite scroll + category filter
+    photos/photo-detail-page.tsx — photo hero, EXIF panel, like/comment, owner controls, prev/next arrows
+    photos/exif-panel.tsx    — EXIF metadata display
+    ui/                      — shared primitives (Button, Avatar, BlurhashImage, TransitionLink, …)
+    albums/                  — album management dialogs
+  hooks/
+    use-feed.ts              — useFeed (infinite query, cursor-based)
+    use-photo.ts             — usePhoto, useLikePhoto, usePhotoComments, useAddComment, …
+    use-users.ts             — useUser, useUserPhotos, …
+    use-categories.ts        — useCategories
+  stores/                    — Zustand stores
+    auth-store.ts            — accessToken, user, isAuthenticated, isInitializing
+    theme-store.ts           — light/dark/system theme (persisted to localStorage)
+    photo-navigation-store.ts — session-stable prev/next photo ID list (frozen on feed click)
+  lib/
+    api-client.ts            — fetch wrapper with auto token refresh on 401
+    query-client.ts          — React Query config (staleTime 30s, retry 1, no refetchOnWindowFocus)
+    utils.ts                 — timeAgo, cn, …
+```
+
+**Client stack:** React 19, Vite 7, TanStack Router (file-based), TanStack Query (server state), Zustand (client state), Tailwind CSS, Biome (lint/format), View Transitions API (TransitionLink wrapper).
+
+**Photo navigation:** `photo-navigation-store` holds a frozen ordered list of photo IDs set at the moment the user clicks a photo from the feed. The detail page reads prev/next IDs from this store — liking a photo or feed refetches do NOT update the list, keeping arrow navigation stable for the session.
+
 ### Shared package
 
 `shared/src/schemas/` contains Zod schemas imported by **both** client and server. When adding a new API input/output shape, define it in shared first. The server's `tsconfig.json` maps `imagiverse-shared` to `../shared/src/index.ts` via `paths`, so `tsx` and `tsc` both resolve it without a build step.
@@ -167,6 +209,7 @@ server/src/
 Five tables: `users`, `photos`, `likes`, `comments`, `feed_scores`. Key points:
 - `users.search_name/user/city` are `GENERATED ALWAYS AS` Postgres columns using `immutable_unaccent(lower(...))` for case-insensitive, diacritics-insensitive trigram search. PostgreSQL's built-in `unaccent()` is `STABLE` but generated columns require `IMMUTABLE` expressions, so we wrap it with `immutable_unaccent()` — a thin SQL wrapper in the migration. These columns are declared as regular nullable `text` in Drizzle schema but populated by the DB automatically.
 - `photos.status` lifecycle: `processing` → `ready` (or `failed`). Only `ready` photos appear in feeds and profiles.
+- `photos.exif_data` stores parsed EXIF metadata (camera make/model, focal length, f-number, ISO, exposure time, GPS, etc.) as JSONB, extracted from the original by the BullMQ thumbnail worker using the `exifr` library.
 - `feed_scores` is a materialized read model; scores are recalculated via BullMQ cron every 5 min (M5) using the gravity formula: `likes / (hours_since_upload + 2) ^ 1.5`.
 - `photos.like_count` and `comment_count` are denormalized counters updated inline on like/comment events.
 
@@ -178,6 +221,13 @@ Path convention (from `server/src/plugins/s3.ts` → `S3Keys`):
 - Avatars: `avatars/{userId}/avatar.webp`
 
 `forcePathStyle: true` is required — Garage uses path-style S3 addressing, not virtual-hosted.
+
+### Connection pooling (PgBouncer — production)
+
+The server supports PgBouncer transparently. docker-compose uses a direct Postgres connection (no PgBouncer in dev).
+- Set `DATABASE_POOL_URL` to the PgBouncer address in production; leave it unset locally.
+- `server/src/db/index.ts` auto-detects: if `DATABASE_POOL_URL` is set it uses it with `prepare: false` (required for transaction-mode pooling); otherwise falls back to `DATABASE_URL`.
+- Migrations always use `DATABASE_URL` (direct) — advisory locks need a persistent session.
 
 ### Auth pattern (implemented in M2)
 
