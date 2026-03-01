@@ -1,0 +1,525 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Imagiverse platform — HTTP traffic · BullMQ jobs · Feed cache · Node.js runtime · Service health",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+
+    { "id": 1, "type": "row", "title": "HTTP API", "collapsed": false, "panels": [],
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 } },
+
+    {
+      "id": 2, "type": "stat", "title": "Requests / min",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "sum(rate(http_request_duration_seconds_count[5m])) * 60", "legendFormat": "", "refId": "A" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm", "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "blue",   "value": null },
+            { "color": "yellow", "value": 600  },
+            { "color": "red",    "value": 3000 }
+          ]},
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background", "graphMode": "area",
+        "justifyMode": "center", "orientation": "auto", "textMode": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "gridPos": { "x": 0, "y": 1, "w": 6, "h": 4 }
+    },
+
+    {
+      "id": 3, "type": "stat", "title": "Error Rate (5xx)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{
+        "expr": "sum(rate(http_request_duration_seconds_count{status_code=~\"5..\"}[5m])) / sum(rate(http_request_duration_seconds_count[5m]))",
+        "legendFormat": "", "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit", "decimals": 2,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green",  "value": null },
+            { "color": "yellow", "value": 0.01 },
+            { "color": "red",    "value": 0.05 }
+          ]},
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background", "graphMode": "area",
+        "justifyMode": "center", "orientation": "auto", "textMode": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "gridPos": { "x": 6, "y": 1, "w": 6, "h": 4 }
+    },
+
+    {
+      "id": 4, "type": "stat", "title": "p95 Latency",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+        "legendFormat": "", "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s", "decimals": 3,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green",  "value": null },
+            { "color": "yellow", "value": 0.3  },
+            { "color": "red",    "value": 1.0  }
+          ]},
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background", "graphMode": "area",
+        "justifyMode": "center", "orientation": "auto", "textMode": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "gridPos": { "x": 12, "y": 1, "w": 6, "h": 4 }
+    },
+
+    {
+      "id": 5, "type": "stat", "title": "Feed Cache Hit Ratio",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{
+        "expr": "rate(feed_cache_hits_total[5m]) / (rate(feed_cache_hits_total[5m]) + rate(feed_cache_misses_total[5m]))",
+        "legendFormat": "", "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit", "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red",    "value": null },
+            { "color": "yellow", "value": 0.5  },
+            { "color": "green",  "value": 0.8  }
+          ]},
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background", "graphMode": "area",
+        "justifyMode": "center", "orientation": "auto", "textMode": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "gridPos": { "x": 18, "y": 1, "w": 6, "h": 4 }
+    },
+
+    {
+      "id": 6, "type": "timeseries", "title": "Request Rate by Status",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "expr": "sum(rate(http_request_duration_seconds_count{status_code=~\"2..\"}[2m])) * 60", "legendFormat": "2xx", "refId": "A" },
+        { "expr": "sum(rate(http_request_duration_seconds_count{status_code=~\"3..\"}[2m])) * 60", "legendFormat": "3xx", "refId": "B" },
+        { "expr": "sum(rate(http_request_duration_seconds_count{status_code=~\"4..\"}[2m])) * 60", "legendFormat": "4xx", "refId": "C" },
+        { "expr": "sum(rate(http_request_duration_seconds_count{status_code=~\"5..\"}[2m])) * 60", "legendFormat": "5xx", "refId": "D" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 15, "gradientMode": "none", "showPoints": "never", "spanNulls": false, "lineInterpolation": "smooth", "stacking": { "mode": "none", "group": "A" } }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "2xx" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green"  } }] },
+          { "matcher": { "id": "byName", "options": "3xx" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue"   } }] },
+          { "matcher": { "id": "byName", "options": "4xx" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+          { "matcher": { "id": "byName", "options": "5xx" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red"    } }] }
+        ]
+      },
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "gridPos": { "x": 0, "y": 5, "w": 12, "h": 8 }
+    },
+
+    {
+      "id": 7, "type": "timeseries", "title": "Response Time Percentiles",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p90", "refId": "B" },
+        { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "C" },
+        { "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99", "refId": "D" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 5, "gradientMode": "opacity", "showPoints": "never", "spanNulls": false, "lineInterpolation": "smooth", "stacking": { "mode": "none", "group": "A" } }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "gridPos": { "x": 12, "y": 5, "w": 12, "h": 8 }
+    },
+
+    {
+      "id": 8, "type": "timeseries", "title": "Request Rate by Route (top 10)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{
+        "expr": "topk(10, sum by (route) (rate(http_request_duration_seconds_count[5m])) * 60)",
+        "legendFormat": "{{route}}", "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 0, "showPoints": "never", "spanNulls": false, "lineInterpolation": "smooth", "stacking": { "mode": "none", "group": "A" } }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["mean"], "displayMode": "table", "placement": "right" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "gridPos": { "x": 0, "y": 13, "w": 12, "h": 8 }
+    },
+
+    {
+      "id": 9, "type": "timeseries", "title": "Feed Cache Hit / Miss Rate",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "expr": "rate(feed_cache_hits_total[2m]) * 60",   "legendFormat": "hits",   "refId": "A" },
+        { "expr": "rate(feed_cache_misses_total[2m]) * 60", "legendFormat": "misses", "refId": "B" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20, "showPoints": "never", "spanNulls": false, "lineInterpolation": "smooth", "stacking": { "mode": "none", "group": "A" } }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "hits"   }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green"  } }] },
+          { "matcher": { "id": "byName", "options": "misses" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] }
+        ]
+      },
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "gridPos": { "x": 12, "y": 13, "w": 12, "h": 8 }
+    },
+
+    { "id": 10, "type": "row", "title": "BullMQ Jobs", "collapsed": false, "panels": [],
+      "gridPos": { "x": 0, "y": 21, "w": 24, "h": 1 } },
+
+    {
+      "id": 11, "type": "stat", "title": "Jobs Completed / min",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "sum(rate(bullmq_jobs_total{status=\"completed\"}[5m])) * 60", "legendFormat": "", "refId": "A" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short", "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background", "graphMode": "area",
+        "justifyMode": "center", "orientation": "auto", "textMode": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "gridPos": { "x": 0, "y": 22, "w": 8, "h": 4 }
+    },
+
+    {
+      "id": 12, "type": "stat", "title": "Job Failure Rate",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{
+        "expr": "sum(rate(bullmq_jobs_total{status=\"failed\"}[5m])) / sum(rate(bullmq_jobs_total[5m]))",
+        "legendFormat": "", "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit", "decimals": 2,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green",  "value": null },
+            { "color": "yellow", "value": 0.05 },
+            { "color": "red",    "value": 0.1  }
+          ]},
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background", "graphMode": "area",
+        "justifyMode": "center", "orientation": "auto", "textMode": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "gridPos": { "x": 8, "y": 22, "w": 8, "h": 4 }
+    },
+
+    {
+      "id": 13, "type": "bargauge", "title": "Jobs Waiting per Queue",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "bullmq_jobs_waiting", "legendFormat": "{{queue}}", "refId": "A" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green",  "value": null },
+            { "color": "yellow", "value": 100  },
+            { "color": "red",    "value": 1000 }
+          ]},
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient", "orientation": "horizontal",
+        "valueMode": "color", "showUnfilled": true,
+        "minVizHeight": 10, "minVizWidth": 8, "namePlacement": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "gridPos": { "x": 16, "y": 22, "w": 8, "h": 4 }
+    },
+
+    {
+      "id": 14, "type": "timeseries", "title": "Job Throughput (completed vs failed)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{
+        "expr": "sum by (queue, status) (rate(bullmq_jobs_total[2m])) * 60",
+        "legendFormat": "{{queue}} / {{status}}", "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "spanNulls": false, "lineInterpolation": "smooth", "stacking": { "mode": "none", "group": "A" } }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "gridPos": { "x": 0, "y": 26, "w": 12, "h": 8 }
+    },
+
+    {
+      "id": 15, "type": "timeseries", "title": "Job Processing Duration",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (queue, le) (rate(bullmq_jobs_duration_seconds_bucket[5m])))", "legendFormat": "{{queue}} p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (queue, le) (rate(bullmq_jobs_duration_seconds_bucket[5m])))", "legendFormat": "{{queue}} p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum by (queue, le) (rate(bullmq_jobs_duration_seconds_bucket[5m])))", "legendFormat": "{{queue}} p99", "refId": "C" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 5, "showPoints": "never", "spanNulls": false, "lineInterpolation": "smooth", "stacking": { "mode": "none", "group": "A" } }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "gridPos": { "x": 12, "y": 26, "w": 12, "h": 8 }
+    },
+
+    { "id": 16, "type": "row", "title": "Node.js Runtime", "collapsed": false, "panels": [],
+      "gridPos": { "x": 0, "y": 34, "w": 24, "h": 1 } },
+
+    {
+      "id": 17, "type": "timeseries", "title": "Event Loop Lag",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "expr": "nodejs_eventloop_lag_p50_seconds", "legendFormat": "{{job}} p50", "refId": "A" },
+        { "expr": "nodejs_eventloop_lag_p90_seconds", "legendFormat": "{{job}} p90", "refId": "B" },
+        { "expr": "nodejs_eventloop_lag_p99_seconds", "legendFormat": "{{job}} p99", "refId": "C" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 5, "showPoints": "never", "spanNulls": false, "lineInterpolation": "smooth", "stacking": { "mode": "none", "group": "A" } },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green",  "value": null },
+            { "color": "yellow", "value": 0.05 },
+            { "color": "red",    "value": 0.1  }
+          ]}
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "gridPos": { "x": 0, "y": 35, "w": 12, "h": 8 }
+    },
+
+    {
+      "id": 18, "type": "timeseries", "title": "V8 Heap: Used vs Total",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "expr": "nodejs_heap_size_used_bytes",  "legendFormat": "{{job}} used",  "refId": "A" },
+        { "expr": "nodejs_heap_size_total_bytes", "legendFormat": "{{job}} total", "refId": "B" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "spanNulls": false, "lineInterpolation": "smooth", "stacking": { "mode": "none", "group": "A" } }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byRegexp", "options": ".* total" },
+            "properties": [
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [6, 3] } },
+              { "id": "custom.fillOpacity", "value": 0 }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "gridPos": { "x": 12, "y": 35, "w": 12, "h": 8 }
+    },
+
+    {
+      "id": 19, "type": "timeseries", "title": "Process CPU Usage",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "rate(process_cpu_seconds_total[2m])", "legendFormat": "{{job}}", "refId": "A" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 15, "showPoints": "never", "spanNulls": false, "lineInterpolation": "smooth", "stacking": { "mode": "none", "group": "A" } }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "gridPos": { "x": 0, "y": 43, "w": 12, "h": 8 }
+    },
+
+    {
+      "id": 20, "type": "timeseries", "title": "GC Time Spent (rate)",
+      "description": "Fraction of wall time the Node.js process spends in garbage collection, by GC kind.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{
+        "expr": "sum by (job, kind) (rate(nodejs_gc_duration_seconds_sum[2m]))",
+        "legendFormat": "{{job}} {{kind}}", "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "spanNulls": false, "lineInterpolation": "smooth", "stacking": { "mode": "none", "group": "A" } }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "gridPos": { "x": 12, "y": 43, "w": 12, "h": 8 }
+    },
+
+    { "id": 21, "type": "row", "title": "Service Health", "collapsed": false, "panels": [],
+      "gridPos": { "x": 0, "y": 51, "w": 24, "h": 1 } },
+
+    {
+      "id": 22, "type": "table", "title": "Scrape Targets",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "up", "format": "table", "instant": true, "legendFormat": "", "refId": "A" }],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red",   "value": null },
+            { "color": "green", "value": 1    }
+          ]},
+          "mappings": [{
+            "type": "value",
+            "options": {
+              "0": { "color": "red",   "index": 0, "text": "DOWN" },
+              "1": { "color": "green", "index": 1, "text": "UP"   }
+            }
+          }]
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Time"     }, "properties": [{ "id": "custom.hidden", "value": true }] },
+          { "matcher": { "id": "byName", "options": "__name__" }, "properties": [{ "id": "custom.hidden", "value": true }] },
+          { "matcher": { "id": "byName", "options": "job"      }, "properties": [{ "id": "displayName",   "value": "Service"  }] },
+          { "matcher": { "id": "byName", "options": "instance" }, "properties": [{ "id": "displayName",   "value": "Instance" }] },
+          { "matcher": { "id": "byName", "options": "Value"    }, "properties": [
+            { "id": "displayName",         "value": "Status"            },
+            { "id": "custom.displayMode",  "value": "color-background"  },
+            { "id": "custom.width",        "value": 100                 }
+          ]}
+        ]
+      },
+      "options": { "showHeader": true, "footer": { "show": false, "reducer": ["sum"] } },
+      "transformations": [{
+        "id": "organize",
+        "options": {
+          "excludeByName": { "Time": true, "__name__": true },
+          "indexByName": { "job": 0, "instance": 1, "Value": 2 },
+          "renameByName": {}
+        }
+      }],
+      "gridPos": { "x": 0, "y": 52, "w": 24, "h": 8 }
+    }
+
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["imagiverse", "overview"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "Prometheus", "value": "prometheus" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Data Source",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "sort": 0,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Imagiverse Overview",
+  "uid": "imagiverse-overview",
+  "version": 1
+}

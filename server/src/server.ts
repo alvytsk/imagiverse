@@ -6,6 +6,7 @@ import rateLimitPlugin from '@fastify/rate-limit';
 import Fastify from 'fastify';
 import { env } from './config/env';
 import { runMigrations } from './db/migrate';
+import { httpRequestDuration, registry } from './lib/metrics';
 import { authenticate } from './middleware/auth';
 import { adminRoutes } from './modules/admin/admin.routes';
 import { albumsRoutes } from './modules/albums/albums.routes';
@@ -50,6 +51,23 @@ async function start(): Promise<void> {
 
   server.log.info('Verifying S3 bucket...');
   await ensureBucketExists();
+
+  // ── Metrics endpoint (Prometheus scrape target) ────────────────────────────
+
+  server.get('/metrics', async (_request, reply) => {
+    reply.header('Content-Type', registry.contentType);
+    return reply.send(await registry.metrics());
+  });
+
+  // ── HTTP request duration instrumentation ──────────────────────────────────
+
+  server.addHook('onResponse', (request, reply, done) => {
+    const route = request.routeOptions?.url ?? 'unknown';
+    httpRequestDuration
+      .labels(request.method, route, String(reply.statusCode))
+      .observe(reply.elapsedTime / 1000);
+    done();
+  });
 
   // ── Register plugins ───────────────────────────────────────────────────────
 

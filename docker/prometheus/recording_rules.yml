@@ -1,0 +1,40 @@
+groups:
+  - name: imagiverse_recording
+    interval: 15s
+    rules:
+      # ── HTTP error rate ───────────────────────────────────────────────────────
+      # 5xx responses as a fraction of total requests, per job.
+      # Usage: job:http_request_error_rate:ratio5m{job="imagiverse-api"}
+      - record: job:http_request_error_rate:ratio5m
+        expr: |
+          sum by (job) (rate(http_request_duration_seconds_count{status_code=~"5.."}[5m]))
+          /
+          sum by (job) (rate(http_request_duration_seconds_count[5m]))
+
+      # ── HTTP p95 latency ──────────────────────────────────────────────────────
+      # 95th-percentile request duration in seconds, per job.
+      # Usage: job:http_request_duration_p95:seconds5m{job="imagiverse-api"}
+      - record: job:http_request_duration_p95:seconds5m
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (job, le) (rate(http_request_duration_seconds_bucket[5m]))
+          )
+
+      # ── Feed cache hit ratio ──────────────────────────────────────────────────
+      # Fraction of feed requests served from Redis cache.
+      # Usage: job:feed_cache_hit_ratio:ratio5m
+      - record: job:feed_cache_hit_ratio:ratio5m
+        expr: |
+          rate(feed_cache_hits_total[5m])
+          /
+          (rate(feed_cache_hits_total[5m]) + rate(feed_cache_misses_total[5m]))
+
+      # ── BullMQ job failure rate ───────────────────────────────────────────────
+      # Failed jobs as a fraction of all processed jobs, per queue.
+      # Usage: queue:bullmq_job_failure_rate:ratio1h{queue="generate-thumbnails"}
+      - record: queue:bullmq_job_failure_rate:ratio1h
+        expr: |
+          sum by (queue) (rate(bullmq_jobs_total{status="failed"}[1h]))
+          /
+          sum by (queue) (rate(bullmq_jobs_total[1h]))

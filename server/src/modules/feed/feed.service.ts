@@ -2,6 +2,7 @@ import { and, desc, eq, lt, or } from 'drizzle-orm';
 import type { ExifData, ExifSummary, FeedItemResponse, PaginatedResponse, PhotoCategorySummary } from 'imagiverse-shared';
 import { db } from '../../db/index';
 import { categories, feedScores, photos, users } from '../../db/schema/index';
+import { feedCacheHitsTotal, feedCacheMissesTotal } from '../../lib/metrics';
 import { getCategoryBySlug } from '../categories/categories.service';
 import { getUserLikedPhotoIds } from '../likes/likes.service';
 import { redis } from '../../plugins/redis';
@@ -69,6 +70,7 @@ export async function getFeed(
   if (!cursor) {
     const cached = await redis.get(cacheKey);
     if (cached) {
+      feedCacheHitsTotal.inc();
       const result = JSON.parse(cached) as PaginatedResponse<FeedItemResponse>;
       // Enrich with user-specific like status
       if (currentUserId && result.data.length > 0) {
@@ -82,6 +84,7 @@ export async function getFeed(
       }
       return result;
     }
+    feedCacheMissesTotal.inc();
   }
 
   // Build cursor condition (score DESC, photoId DESC)

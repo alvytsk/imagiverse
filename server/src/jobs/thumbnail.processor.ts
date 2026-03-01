@@ -10,6 +10,7 @@ import { photos } from '../db/schema/index';
 import { extractCuratedExif } from '../lib/exif';
 import { logger } from '../lib/logger';
 import { downloadObject, S3Keys, uploadObject } from '../plugins/s3';
+import { bullmqJobsDuration, bullmqJobsTotal } from '../lib/metrics';
 import { bullConnection, THUMBNAIL_QUEUE_NAME, type ThumbnailJobData } from './queue';
 
 // Decompression bomb protection (~100 MP)
@@ -34,16 +35,22 @@ export async function processThumbnailJob(job: Job<ThumbnailJobData>): Promise<v
 
   jobLog.info('thumbnail job started');
 
+  let t = Date.now();
+
   // 1. Download original from S3
   const originalBuffer = await downloadObject(originalKey);
+  jobLog.info({ stage: 'download_original', durationMs: Date.now() - t }, 'stage complete');
 
   // 2. Validate image with Sharp metadata
+  t = Date.now();
   const metadata = await sharp(originalBuffer).metadata();
   if (!metadata.width || !metadata.height) {
     throw new Error(`Invalid image metadata for photo ${photoId}`);
   }
+  jobLog.info({ stage: 'read_metadata', durationMs: Date.now() - t }, 'stage complete');
 
   // 3. Extract EXIF data (before thumbnails strip it via WebP conversion)
+  t = Date.now();
   let exifData: ExifData | null = null;
   if (metadata.exif) {
     try {
@@ -62,8 +69,10 @@ export async function processThumbnailJob(job: Job<ThumbnailJobData>): Promise<v
   } else {
     jobLog.info({ format: metadata.format }, 'No EXIF buffer in image metadata');
   }
+  jobLog.info({ stage: 'extract_exif', durationMs: Date.now() - t }, 'stage complete');
 
-  // 4. Generate 3 thumbnails in parallel
+  // 4. Generate 3 thumbnails + blurhash in parallel
+  t = Date.now();
   const thumbnailResults = await Promise.all(
     THUMBNAIL_SIZES.map(async (size) => {
       const buffer = await sharp(originalBuffer)
@@ -83,12 +92,6 @@ export async function processThumbnailJob(job: Job<ThumbnailJobData>): Promise<v
     })
   );
 
-  // 5. Upload all thumbnails to S3
-  await Promise.all(
-    thumbnailResults.map((thumb) => uploadObject(thumb.key, thumb.buffer, 'image/webp'))
-  );
-
-  // 6. Generate blurhash from small thumbnail
   const smallThumb = thumbnailResults.find((t) => t.name === 'small')!;
   const blurhashSize = 32;
   const { data: pixels, info } = await sharp(smallThumb.buffer)
@@ -97,8 +100,17 @@ export async function processThumbnailJob(job: Job<ThumbnailJobData>): Promise<v
     .raw()
     .toBuffer({ resolveWithObject: true });
   const blurhash = encode(new Uint8ClampedArray(pixels), info.width, info.height, 4, 3);
+  jobLog.info({ stage: 'sharp_resize', durationMs: Date.now() - t }, 'stage complete');
 
-  // 7. Update DB row with thumbnail keys, dimensions, blurhash, EXIF, and status
+  // 5. Upload all thumbnails to S3
+  t = Date.now();
+  await Promise.all(
+    thumbnailResults.map((thumb) => uploadObject(thumb.key, thumb.buffer, 'image/webp'))
+  );
+  jobLog.info({ stage: 'upload_thumbnails', durationMs: Date.now() - t }, 'stage complete');
+
+  // 6. Update DB row with thumbnail keys, dimensions, blurhash, EXIF, and status
+  t = Date.now();
   await db
     .update(photos)
     .set({
@@ -113,6 +125,7 @@ export async function processThumbnailJob(job: Job<ThumbnailJobData>): Promise<v
       updatedAt: new Date(),
     })
     .where(eq(photos.id, photoId));
+  jobLog.info({ stage: 'db_update', durationMs: Date.now() - t }, 'stage complete');
 
   jobLog.info('thumbnail job completed');
 }
@@ -132,6 +145,13 @@ export function createThumbnailWorker(): Worker<ThumbnailJobData> {
     }
   );
 
+  worker.on('completed', (job) => {
+    const durationSec =
+      job.finishedOn && job.processedOn ? (job.finishedOn - job.processedOn) / 1000 : 0;
+    bullmqJobsTotal.inc({ queue: THUMBNAIL_QUEUE_NAME, status: 'completed' });
+    bullmqJobsDuration.observe({ queue: THUMBNAIL_QUEUE_NAME }, durationSec);
+  });
+
   worker.on('failed', async (job, err) => {
     if (!job) return;
     const failLog = logger.child({
@@ -140,6 +160,7 @@ export function createThumbnailWorker(): Worker<ThumbnailJobData> {
       correlationId: job.data.correlationId,
       attempt: job.attemptsMade,
     });
+    bullmqJobsTotal.inc({ queue: THUMBNAIL_QUEUE_NAME, status: 'failed' });
     const isFinalAttempt = job.attemptsMade >= (job.opts.attempts ?? 1);
     if (isFinalAttempt) {
       failLog.error({ err: err.message }, 'thumbnail job failed permanently');

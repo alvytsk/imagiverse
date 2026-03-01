@@ -1,7 +1,9 @@
+import { HeadBucketCommand } from '@aws-sdk/client-s3';
 import { sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { db } from '../../db/index';
 import { redis } from '../../plugins/redis';
+import { s3Client, S3_BUCKET } from '../../plugins/s3';
 
 export async function healthRoutes(fastify: FastifyInstance): Promise<void> {
   // Basic liveness check — always returns 200 if the process is running
@@ -27,6 +29,14 @@ export async function healthRoutes(fastify: FastifyInstance): Promise<void> {
       checks.redis = 'ok';
     } catch {
       checks.redis = 'fail';
+    }
+
+    // Check S3
+    try {
+      await s3Client.send(new HeadBucketCommand({ Bucket: S3_BUCKET }));
+      checks.s3 = 'ok';
+    } catch {
+      checks.s3 = 'fail';
     }
 
     const allOk = Object.values(checks).every((v) => v === 'ok');

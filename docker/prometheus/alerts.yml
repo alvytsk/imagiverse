@@ -1,0 +1,108 @@
+groups:
+  - name: imagiverse
+    rules:
+      # ── API error rate ────────────────────────────────────────────────────────
+      # Fire when 5xx responses exceed 5% of total traffic for 5 consecutive minutes.
+      - alert: ApiHighErrorRate
+        expr: |
+          sum(rate(http_request_duration_seconds_count{status_code=~"5.."}[5m]))
+          /
+          sum(rate(http_request_duration_seconds_count[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API 5xx error rate above 5%"
+          description: >-
+            {{ $value | humanizePercentage }} of API requests are returning
+            5xx status codes over the last 5 minutes (threshold: 5%).
+
+      # ── Feed endpoint latency ─────────────────────────────────────────────────
+      # Fire when the p95 response time for /api/feed routes exceeds 300 ms.
+      - alert: FeedHighP95Latency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(http_request_duration_seconds_bucket{route=~"/api/feed.*"}[5m])) by (le)
+          ) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Feed p95 latency above 300 ms"
+          description: >-
+            95th-percentile response time for feed endpoints is
+            {{ printf "%.3f" $value }}s (threshold: 0.3s / 300 ms).
+
+      # ── BullMQ queue backlog ──────────────────────────────────────────────────
+      # Fire when any queue has more than 1000 waiting jobs for 10 minutes.
+      - alert: BullMQQueueBacklog
+        expr: bullmq_jobs_waiting > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "BullMQ queue backlog: {{ $labels.queue }}"
+          description: >-
+            Queue "{{ $labels.queue }}" has {{ printf "%.0f" $value }} jobs
+            waiting (threshold: 1000) for more than 10 minutes.
+
+      # ── Service availability ──────────────────────────────────────────────────
+      # Fire when Prometheus fails to scrape any target for 1 minute.
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is unreachable"
+          description: >-
+            Prometheus cannot scrape {{ $labels.job }} at {{ $labels.instance }}.
+            The service may be down or its /metrics endpoint is unavailable.
+
+      # ── Node.js event loop lag ────────────────────────────────────────────────
+      # p99 event loop lag >100 ms indicates the process is CPU-bound or running
+      # synchronous blocking work that starves the event loop.
+      - alert: NodeEventLoopLagHigh
+        expr: nodejs_eventloop_lag_p99_seconds > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Node.js event loop p99 lag high: {{ $labels.job }}"
+          description: >-
+            p99 event loop lag for {{ $labels.job }} is
+            {{ printf "%.3f" $value }}s (threshold: 100 ms).
+            The process may be CPU-bound or blocking the event loop.
+
+      # ── Node.js heap usage ────────────────────────────────────────────────────
+      # Heap used >90% of total allocated heap means GC is running very frequently;
+      # the process is approaching its heap limit and risks OOM crashes.
+      - alert: NodeHeapNearLimit
+        expr: nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Node.js heap above 90%: {{ $labels.job }}"
+          description: >-
+            {{ $labels.job }} is using {{ $value | humanizePercentage }} of its
+            V8 heap (threshold: 90%). Possible memory leak or heap limit is too low.
+
+      # ── BullMQ job failure rate ───────────────────────────────────────────────
+      # Fire when failed jobs exceed 10% of all processed jobs over a 1-hour window.
+      - alert: BullMQHighFailureRate
+        expr: |
+          sum by (queue) (rate(bullmq_jobs_total{status="failed"}[1h]))
+          /
+          sum by (queue) (rate(bullmq_jobs_total[1h]))
+          > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "BullMQ failure rate above 10%: {{ $labels.queue }}"
+          description: >-
+            {{ $value | humanizePercentage }} of jobs in queue
+            "{{ $labels.queue }}" are failing over the last hour (threshold: 10%).
