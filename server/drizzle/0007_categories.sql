@@ -1,3 +1,6 @@
+-- Migration: 0007_categories
+-- Adds photo categories: lookup table, FK on photos, and seed data
+
 CREATE TABLE "categories" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL,
