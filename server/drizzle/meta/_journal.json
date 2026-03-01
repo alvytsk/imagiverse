@@ -36,6 +36,27 @@
       "when": 1740528000000,
       "tag": "0004_threads_albums_privacy",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1740614400000,
+      "tag": "0005_exif_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1772287326979,
+      "tag": "0006_banner_url",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1772291537171,
+      "tag": "0007_categories",
+      "breakpoints": true
     }
   ]
 }

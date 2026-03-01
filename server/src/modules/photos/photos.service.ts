@@ -1,9 +1,9 @@
 import crypto from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
-import type { PhotoResponse, PhotoVisibility } from 'imagiverse-shared';
+import type { ExifData, PhotoCategorySummary, PhotoResponse, PhotoVisibility } from 'imagiverse-shared';
 import sanitizeHtml from 'sanitize-html';
 import { db } from '../../db/index';
-import { photos } from '../../db/schema/index';
+import { categories, photos } from '../../db/schema/index';
 import { type ThumbnailJobData, thumbnailQueue } from '../../jobs/queue';
 import { RedisKeys, redis } from '../../plugins/redis';
 import { getPresignedDownloadUrl, S3Keys, uploadObject } from '../../plugins/s3';
@@ -54,6 +54,7 @@ export async function uploadPhoto({
   sizeBytes,
   caption,
   visibility = 'public',
+  categoryId,
   correlationId,
 }: {
   userId: string;
@@ -62,6 +63,7 @@ export async function uploadPhoto({
   sizeBytes: number;
   caption?: string | null;
   visibility?: PhotoVisibility;
+  categoryId?: string;
   correlationId?: string;
 }) {
   const photoId = crypto.randomUUID();
@@ -81,6 +83,7 @@ export async function uploadPhoto({
       caption: sanitizedCaption,
       status: 'processing',
       visibility,
+      categoryId: categoryId ?? null,
       originalKey,
       mimeType,
       sizeBytes,
@@ -97,13 +100,42 @@ export async function uploadPhoto({
 }
 
 export async function getPhotoById(photoId: string) {
-  const [photo] = await db.select().from(photos).where(eq(photos.id, photoId)).limit(1);
-  return photo ?? null;
+  const rows = await db
+    .select({
+      id: photos.id,
+      userId: photos.userId,
+      categoryId: photos.categoryId,
+      caption: photos.caption,
+      status: photos.status,
+      originalKey: photos.originalKey,
+      thumbSmallKey: photos.thumbSmallKey,
+      thumbMediumKey: photos.thumbMediumKey,
+      thumbLargeKey: photos.thumbLargeKey,
+      width: photos.width,
+      height: photos.height,
+      sizeBytes: photos.sizeBytes,
+      mimeType: photos.mimeType,
+      blurhash: photos.blurhash,
+      exifData: photos.exifData,
+      visibility: photos.visibility,
+      likeCount: photos.likeCount,
+      commentCount: photos.commentCount,
+      createdAt: photos.createdAt,
+      updatedAt: photos.updatedAt,
+      categoryName: categories.name,
+      categorySlug: categories.slug,
+    })
+    .from(photos)
+    .leftJoin(categories, eq(photos.categoryId, categories.id))
+    .where(eq(photos.id, photoId))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function buildPhotoResponse(photo: {
   id: string;
   userId: string;
+  categoryId?: string | null;
   caption: string | null;
   status: string;
   visibility: string;
@@ -113,11 +145,14 @@ export async function buildPhotoResponse(photo: {
   blurhash: string | null;
   width: number | null;
   height: number | null;
+  exifData: unknown;
   likeCount: number;
   commentCount: number;
   createdAt: Date;
   updatedAt: Date;
-}): Promise<PhotoResponse> {
+  categoryName?: string | null;
+  categorySlug?: string | null;
+}, options?: { likedByMe?: boolean }): Promise<PhotoResponse> {
   const [small, medium, large] = await Promise.all([
     photo.thumbSmallKey ? getPresignedDownloadUrl(photo.thumbSmallKey, PRESIGNED_URL_EXPIRY) : null,
     photo.thumbMediumKey
@@ -125,6 +160,11 @@ export async function buildPhotoResponse(photo: {
       : null,
     photo.thumbLargeKey ? getPresignedDownloadUrl(photo.thumbLargeKey, PRESIGNED_URL_EXPIRY) : null,
   ]);
+
+  const category: PhotoCategorySummary | null =
+    photo.categoryId && photo.categoryName && photo.categorySlug
+      ? { id: photo.categoryId, name: photo.categoryName, slug: photo.categorySlug }
+      : null;
 
   return {
     id: photo.id,
@@ -138,6 +178,9 @@ export async function buildPhotoResponse(photo: {
     height: photo.height,
     likeCount: photo.likeCount,
     commentCount: photo.commentCount,
+    likedByMe: options?.likedByMe ?? false,
+    exifData: (photo.exifData as ExifData) ?? null,
+    category,
     createdAt: photo.createdAt.toISOString(),
     updatedAt: photo.updatedAt.toISOString(),
   };
@@ -158,11 +201,25 @@ export async function updateCaption(photoId: string, userId: string, caption: st
 export async function updateVisibility(
   photoId: string,
   userId: string,
-  visibility: 'public' | 'private',
+  visibility: 'public' | 'private'
 ) {
   const [updated] = await db
     .update(photos)
     .set({ visibility, updatedAt: new Date() })
+    .where(and(eq(photos.id, photoId), eq(photos.userId, userId)))
+    .returning();
+
+  return updated ?? null;
+}
+
+export async function updatePhotoCategory(
+  photoId: string,
+  userId: string,
+  categoryId: string | null
+) {
+  const [updated] = await db
+    .update(photos)
+    .set({ categoryId, updatedAt: new Date() })
     .where(and(eq(photos.id, photoId), eq(photos.userId, userId)))
     .returning();
 

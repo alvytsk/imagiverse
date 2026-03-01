@@ -3,7 +3,10 @@ import type { CommentResponse, PaginatedResponse } from 'imagiverse-shared';
 import sanitizeHtml from 'sanitize-html';
 import { db } from '../../db/index';
 import { comments, photos, users } from '../../db/schema/index';
+import { getPresignedDownloadUrl } from '../../plugins/s3';
 import { createNotification } from '../notifications/notifications.service';
+
+const AVATAR_URL_EXPIRY = 3600;
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -121,10 +124,14 @@ export async function createComment(
     .where(eq(photos.id, photoId));
 
   const [author] = await db
-    .select({ username: users.username, displayName: users.displayName })
+    .select({ username: users.username, displayName: users.displayName, avatarUrl: users.avatarUrl })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
+
+  const avatarUrl = author.avatarUrl
+    ? await getPresignedDownloadUrl(author.avatarUrl, AVATAR_URL_EXPIRY)
+    : null;
 
   const response: CommentResponse = {
     id: comment.id,
@@ -132,6 +139,7 @@ export async function createComment(
     userId: comment.userId,
     username: author.username,
     displayName: author.displayName,
+    avatarUrl,
     body: comment.body,
     parentId: comment.parentId,
     replyCount: 0,
@@ -188,9 +196,7 @@ export async function listComments(
 
   // Only fetch top-level comments (parentId IS NULL)
   const baseCondition = and(eq(comments.photoId, photoId), isNull(comments.parentId));
-  const whereConditions = cursorCondition
-    ? and(baseCondition, cursorCondition)
-    : baseCondition;
+  const whereConditions = cursorCondition ? and(baseCondition, cursorCondition) : baseCondition;
 
   const rows = await db
     .select({
@@ -203,6 +209,7 @@ export async function listComments(
       updatedAt: comments.updatedAt,
       username: users.username,
       displayName: users.displayName,
+      avatarKey: users.avatarUrl,
     })
     .from(comments)
     .innerJoin(users, eq(comments.userId, users.id))
@@ -225,6 +232,9 @@ export async function listComments(
       userId: row.userId,
       username: row.username,
       displayName: row.displayName,
+      avatarUrl: row.avatarKey
+        ? await getPresignedDownloadUrl(row.avatarKey, AVATAR_URL_EXPIRY)
+        : null,
       body: row.body,
       parentId: row.parentId,
       replyCount: await getReplyCount(row.id),
@@ -259,9 +269,7 @@ export async function listReplies(
   }
 
   const baseCondition = eq(comments.parentId, parentId);
-  const whereConditions = cursorCondition
-    ? and(baseCondition, cursorCondition)
-    : baseCondition;
+  const whereConditions = cursorCondition ? and(baseCondition, cursorCondition) : baseCondition;
 
   const rows = await db
     .select({
@@ -274,6 +282,7 @@ export async function listReplies(
       updatedAt: comments.updatedAt,
       username: users.username,
       displayName: users.displayName,
+      avatarKey: users.avatarUrl,
     })
     .from(comments)
     .innerJoin(users, eq(comments.userId, users.id))
@@ -289,19 +298,26 @@ export async function listReplies(
       ? encodeCursor(data[data.length - 1].createdAt, data[data.length - 1].id)
       : null;
 
-  return {
-    data: data.map((row) => ({
+  const mappedData = await Promise.all(
+    data.map(async (row) => ({
       id: row.id,
       photoId: row.photoId,
       userId: row.userId,
       username: row.username,
       displayName: row.displayName,
+      avatarUrl: row.avatarKey
+        ? await getPresignedDownloadUrl(row.avatarKey, AVATAR_URL_EXPIRY)
+        : null,
       body: row.body,
       parentId: row.parentId,
       replyCount: 0,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
-    })),
+    }))
+  );
+
+  return {
+    data: mappedData,
     pagination: { nextCursor, hasMore },
   };
 }

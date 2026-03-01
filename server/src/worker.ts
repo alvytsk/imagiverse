@@ -3,8 +3,9 @@ import type { Worker } from 'bullmq';
 import Fastify from 'fastify';
 import { env } from './config/env';
 import { createFeedScoreWorker } from './jobs/feed-score.processor';
-import { feedScoreQueue } from './jobs/queue';
+import { feedScoreQueue, thumbnailQueue, THUMBNAIL_QUEUE_NAME, FEED_SCORE_QUEUE_NAME } from './jobs/queue';
 import { createThumbnailWorker } from './jobs/thumbnail.processor';
+import { bullmqJobsWaiting, registry } from './lib/metrics';
 
 // ============================================================================
 // Worker Entry Point
@@ -34,6 +35,11 @@ healthServer.get('/health', async () => ({
   timestamp: new Date().toISOString(),
 }));
 
+healthServer.get('/metrics', async (_request, reply) => {
+  reply.header('Content-Type', registry.contentType);
+  return reply.send(await registry.metrics());
+});
+
 let thumbnailWorker: Worker | undefined;
 let feedScoreWorker: Worker | undefined;
 
@@ -48,6 +54,20 @@ async function start(): Promise<void> {
 
   feedScoreWorker = createFeedScoreWorker();
   healthServer.log.info('Feed score recalc worker started');
+
+  // Poll queue depths every 15 s for Prometheus gauge
+  setInterval(async () => {
+    try {
+      const [thumbCounts, feedCounts] = await Promise.all([
+        thumbnailQueue.getJobCounts('waiting'),
+        feedScoreQueue.getJobCounts('waiting'),
+      ]);
+      bullmqJobsWaiting.set({ queue: THUMBNAIL_QUEUE_NAME }, thumbCounts.waiting ?? 0);
+      bullmqJobsWaiting.set({ queue: FEED_SCORE_QUEUE_NAME }, feedCounts.waiting ?? 0);
+    } catch {
+      // non-fatal — metrics may be stale
+    }
+  }, 15_000);
 
   // Schedule feed score recalculation every 5 minutes
   await feedScoreQueue.upsertJobScheduler(

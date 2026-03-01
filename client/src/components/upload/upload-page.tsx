@@ -1,22 +1,28 @@
 import { useNavigate } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from 'imagiverse-shared';
 import type { PhotoVisibility } from 'imagiverse-shared';
 import { Eye, EyeOff, ImagePlus, Upload, X } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { useCategories } from '@/hooks/use-categories';
 import { ApiClientError } from '@/lib/api-client';
 import { resizeImageForUpload } from '@/lib/image-resize';
 import { useAuthStore } from '@/stores/auth-store';
 
 export function UploadPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { data: categoriesList } = useCategories();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
+  const [categoryId, setCategoryId] = useState('');
   const [visibility, setVisibility] = useState<PhotoVisibility>('public');
   const [isResizing, setIsResizing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -83,6 +89,9 @@ export function UploadPage() {
       if (caption.trim()) {
         formData.append('caption', caption.trim());
       }
+      if (categoryId) {
+        formData.append('categoryId', categoryId);
+      }
       formData.append('visibility', visibility);
 
       const token = useAuthStore.getState().accessToken;
@@ -103,6 +112,9 @@ export function UploadPage() {
       }
 
       const data = await res.json();
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['photos'] });
       toast.success('Photo uploaded! It will appear once processing is complete.');
       navigate({
         to: '/photos/$photoId',
@@ -122,6 +134,7 @@ export function UploadPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
+      <Breadcrumbs items={[{ label: 'Upload' }]} />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -214,6 +227,27 @@ export function UploadPage() {
               {caption.length}/2000
             </p>
           </div>
+
+          {categoriesList && categoriesList.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="category">
+                Category (optional)
+              </label>
+              <select
+                id="category"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="">No category</option>
+                {categoriesList.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex items-center gap-3">
             <Button

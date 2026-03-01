@@ -1,16 +1,26 @@
 import multipartPlugin from '@fastify/multipart';
 import type { FastifyInstance } from 'fastify';
-import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, PHOTO_VISIBILITY, UpdateCaptionSchema, UpdateVisibilitySchema } from 'imagiverse-shared';
 import type { PhotoVisibility } from 'imagiverse-shared';
+import {
+  ALLOWED_MIME_TYPES,
+  MAX_FILE_SIZE_BYTES,
+  PHOTO_VISIBILITY,
+  UpdateCaptionSchema,
+  UpdatePhotoCategorySchema,
+  UpdateVisibilitySchema,
+} from 'imagiverse-shared';
 import sharp from 'sharp';
 import { authenticate, tryParseAuth } from '../../middleware/auth';
 import type { PhotoIdParams } from './photos.schema';
+import { getCategoryById } from '../categories/categories.service';
+import { hasUserLiked } from '../likes/likes.service';
 import {
   buildPhotoResponse,
   checkUploadRateLimit,
   getPhotoById,
   softDeletePhoto,
   updateCaption,
+  updatePhotoCategory,
   updateVisibility,
   uploadPhoto,
 } from './photos.service';
@@ -104,10 +114,32 @@ export async function photoRoutes(fastify: FastifyInstance): Promise<void> {
       // Extract visibility from multipart fields
       const visibilityField = data.fields.visibility;
       let visibility: PhotoVisibility = 'public';
-      if (visibilityField && 'value' in visibilityField && typeof visibilityField.value === 'string') {
+      if (
+        visibilityField &&
+        'value' in visibilityField &&
+        typeof visibilityField.value === 'string'
+      ) {
         if (PHOTO_VISIBILITY.includes(visibilityField.value as PhotoVisibility)) {
           visibility = visibilityField.value as PhotoVisibility;
         }
+      }
+
+      // Extract categoryId from multipart fields
+      const categoryField = data.fields.categoryId;
+      let categoryId: string | undefined;
+      if (
+        categoryField &&
+        'value' in categoryField &&
+        typeof categoryField.value === 'string' &&
+        categoryField.value
+      ) {
+        const cat = await getCategoryById(categoryField.value);
+        if (!cat) {
+          return reply.status(400).send(
+            validationError([{ field: 'categoryId', message: 'Invalid category' }])
+          );
+        }
+        categoryId = categoryField.value;
       }
 
       const photo = await uploadPhoto({
@@ -117,6 +149,7 @@ export async function photoRoutes(fastify: FastifyInstance): Promise<void> {
         sizeBytes,
         caption,
         visibility,
+        categoryId,
         correlationId: request.id,
       });
 
@@ -136,8 +169,9 @@ export async function photoRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
+      const authUser = tryParseAuth(request);
+
       if (photo.visibility === 'private') {
-        const authUser = tryParseAuth(request);
         if (authUser?.id !== photo.userId) {
           return reply.status(404).send({
             error: { code: 'NOT_FOUND', message: 'Photo not found' },
@@ -145,7 +179,8 @@ export async function photoRoutes(fastify: FastifyInstance): Promise<void> {
         }
       }
 
-      const response = await buildPhotoResponse(photo);
+      const likedByMe = authUser ? await hasUserLiked(authUser.id, photo.id) : false;
+      const response = await buildPhotoResponse(photo, { likedByMe });
       return reply.send(response);
     },
   });
@@ -206,6 +241,50 @@ export async function photoRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       const response = await buildPhotoResponse(updated);
+      return reply.send(response);
+    },
+  });
+
+  // ── PATCH /photos/:id/category ───────────────────────────────────────────
+  fastify.patch<{ Params: PhotoIdParams }>('/photos/:id/category', {
+    preHandler: authenticate,
+    handler: async (request, reply) => {
+      const { id } = request.params;
+      const userId = request.user!.id;
+
+      const result = UpdatePhotoCategorySchema.safeParse(request.body);
+      if (!result.success) {
+        return reply
+          .status(400)
+          .send(
+            validationError(
+              result.error.issues.map((i: { path: (string | number)[]; message: string }) => ({ field: i.path.join('.'), message: i.message }))
+            )
+          );
+      }
+
+      const { categoryId } = result.data;
+
+      // Validate category exists if not null
+      if (categoryId) {
+        const cat = await getCategoryById(categoryId);
+        if (!cat) {
+          return reply.status(400).send(
+            validationError([{ field: 'categoryId', message: 'Invalid category' }])
+          );
+        }
+      }
+
+      const updated = await updatePhotoCategory(id, userId, categoryId);
+      if (!updated) {
+        return reply.status(404).send({
+          error: { code: 'NOT_FOUND', message: 'Photo not found' },
+        });
+      }
+
+      // Re-fetch to get joined category data
+      const photo = await getPhotoById(id);
+      const response = await buildPhotoResponse(photo!);
       return reply.send(response);
     },
   });

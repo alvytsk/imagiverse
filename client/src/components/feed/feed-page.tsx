@@ -1,14 +1,18 @@
-import { Link } from '@tanstack/react-router';
-import type { FeedItemResponse } from 'imagiverse-shared';
+import { Link, useNavigate, useSearch } from '@tanstack/react-router';
+import type { ExifSummary, FeedItemResponse } from 'imagiverse-shared';
 import { Camera, Heart, MessageCircle } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { CategoryFilterBar } from '@/components/feed/category-filter-bar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { BlurhashImage } from '@/components/ui/blurhash-image';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TransitionLink } from '@/components/ui/transition-link';
+import { useCategories } from '@/hooks/use-categories';
 import { useFeed } from '@/hooks/use-feed';
 import { useAuthStore } from '@/stores/auth-store';
+import { usePhotoNavigationStore } from '@/stores/photo-navigation-store';
 
 // ── Responsive column count (matches Tailwind sm/lg/xl breakpoints) ─────────
 
@@ -80,10 +84,21 @@ function distributeToColumns<
 // ── Feed page ───────────────────────────────────────────────────────────────
 
 export function FeedPage() {
+  const { category: selectedCategory } = useSearch({ from: '/' });
+  const navigate = useNavigate();
+  const { data: categoriesList } = useCategories();
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error } =
-    useFeed();
+    useFeed(20, selectedCategory);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const columnCount = useColumnCount();
+  const setNavigation = usePhotoNavigationStore((s) => s.setNavigation);
+
+  const setSelectedCategory = useCallback(
+    (slug: string | undefined) => {
+      navigate({ to: '/', search: { category: slug }, replace: true });
+    },
+    [navigate],
+  );
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useCallback(
@@ -117,6 +132,14 @@ export function FeedPage() {
     [photos, columnCount],
   );
 
+  // Snapshot the current feed order so detail-page arrows stay stable even after likes/refetches.
+  const handlePhotoClick = useCallback(() => {
+    setNavigation(
+      photos.map((p) => p.id),
+      `feed:${selectedCategory ?? 'all'}`,
+    );
+  }, [photos, selectedCategory, setNavigation]);
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -149,11 +172,18 @@ export function FeedPage() {
 
   return (
     <div>
-      <div className="flex gap-4">
+      {categoriesList && categoriesList.length > 0 && (
+        <CategoryFilterBar
+          categories={categoriesList}
+          selected={selectedCategory}
+          onSelect={setSelectedCategory}
+        />
+      )}
+      <div className="flex gap-5">
         {columns.map((col, colIdx) => (
-          <div key={colIdx} className="flex-1 space-y-4">
+          <div key={colIdx} className="flex-1 space-y-5">
             {col.map((photo) => (
-              <FeedCard key={photo.id} photo={photo} />
+              <FeedCard key={photo.id} photo={photo} onNavigate={handlePhotoClick} />
             ))}
           </div>
         ))}
@@ -169,16 +199,44 @@ export function FeedPage() {
   );
 }
 
-function FeedCard({ photo }: { photo: FeedItemResponse }) {
+// ── EXIF formatting helpers ─────────────────────────────────────────────────
+
+/** Strip redundant manufacturer prefix from camera model (e.g. "Canon Canon EOS R5" → "EOS R5"). */
+function shortCameraModel(exif: ExifSummary): string | null {
+  if (!exif.cameraModel) return null;
+  // Many cameras prefix the model with the make: "Canon Canon EOS R5"
+  // or "NIKON CORPORATION NIKON Z 9" — strip the redundant part
+  return exif.cameraModel
+    .replace(/^(Canon|CANON|Nikon|NIKON|NIKON CORPORATION|Sony|SONY|Fujifilm|FUJIFILM|Apple|Samsung|SAMSUNG|Panasonic|PANASONIC|Olympus|OLYMPUS|OM SYSTEM|Leica|LEICA|DJI|GoPro|GOPRO|Hasselblad)\s+/i, '')
+    .trim();
+}
+
+/** Format shooting settings as a compact string: "85mm · ƒ/1.4 · ISO 200" */
+function formatShootingSettings(exif: ExifSummary): string | null {
+  const parts: string[] = [];
+  if (exif.focalLength != null) parts.push(`${Math.round(exif.focalLength)}mm`);
+  if (exif.fNumber != null) parts.push(`ƒ/${exif.fNumber}`);
+  if (exif.iso != null) parts.push(`ISO ${exif.iso}`);
+  if (exif.exposureTime) parts.push(exif.exposureTime);
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+// ── FeedCard ────────────────────────────────────────────────────────────────
+
+function FeedCard({ photo, onNavigate }: { photo: FeedItemResponse; onNavigate?: () => void }) {
   const aspectRatio =
     photo.width && photo.height ? photo.height / photo.width : 1;
   const paddingBottom = `${Math.min(aspectRatio * 100, 150)}%`;
 
+  const cameraModel = photo.exifSummary ? shortCameraModel(photo.exifSummary) : null;
+  const shootingSettings = photo.exifSummary ? formatShootingSettings(photo.exifSummary) : null;
+
   return (
     <div>
-      <Link
+      <TransitionLink
         to="/photos/$photoId"
         params={{ photoId: photo.id }}
+        onClick={onNavigate}
         className="group block overflow-hidden rounded-2xl bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
       >
         <div className="relative" style={{ paddingBottom }}>
@@ -186,11 +244,18 @@ function FeedCard({ photo }: { photo: FeedItemResponse }) {
             blurhash={photo.blurhash}
             src={photo.thumbnails.medium ?? photo.thumbnails.small ?? ''}
             alt={photo.caption || `Photo by ${photo.author.displayName}`}
-            className="absolute inset-0 h-full w-full"
+            className="absolute inset-0 h-full w-full rounded-2xl"
+            style={{ viewTransitionName: `photo-${photo.id}` }}
           />
+          {cameraModel && (
+            <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/30 px-2 py-0.5 text-white text-[10px] backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+              <Camera className="h-3 w-3" />
+              <span className="truncate max-w-[120px]">{cameraModel}</span>
+            </div>
+          )}
           <div className="absolute bottom-2 right-2 flex items-center gap-2 rounded-full bg-black/30 px-2.5 py-1 text-white text-xs backdrop-blur-sm transition-all group-hover:bg-black/50">
-            <span className="flex items-center gap-1">
-              <Heart className="h-3.5 w-3.5" />
+            <span className={`flex items-center gap-1 ${photo.likedByMe ? 'text-red-400' : ''}`}>
+              <Heart className={`h-3.5 w-3.5 ${photo.likedByMe ? 'fill-current' : ''}`} />
               {photo.likeCount}
             </span>
             <span className="flex items-center gap-1">
@@ -199,20 +264,27 @@ function FeedCard({ photo }: { photo: FeedItemResponse }) {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2 border-t border-border/50 px-3 py-2.5">
-          <Avatar className="h-6 w-6">
-            {photo.author.avatarUrl ? (
-              <AvatarImage src={photo.author.avatarUrl} />
-            ) : null}
-            <AvatarFallback className="text-xs">
-              {photo.author.displayName.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <span className="text-sm font-medium truncate">
-            {photo.author.displayName}
-          </span>
+        <div className="border-t border-border/50 px-3 py-3">
+          <div className="flex items-center gap-2">
+            <Avatar className="h-6 w-6">
+              {photo.author.avatarUrl ? (
+                <AvatarImage src={photo.author.avatarUrl} />
+              ) : null}
+              <AvatarFallback className="text-xs">
+                {photo.author.displayName.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-sm font-medium truncate">
+              {photo.author.displayName}
+            </span>
+          </div>
+          {shootingSettings && (
+            <p className="text-[11px] text-muted-foreground mt-1 ml-8 truncate">
+              {shootingSettings}
+            </p>
+          )}
         </div>
-      </Link>
+      </TransitionLink>
     </div>
   );
 }
@@ -229,9 +301,9 @@ function FeedSkeleton({ columnCount }: { columnCount: number }) {
   }, [columnCount]);
 
   return (
-    <div className="flex gap-4">
+    <div className="flex gap-5">
       {cols.map((col, colIdx) => (
-        <div key={colIdx} className="flex-1 space-y-4">
+        <div key={colIdx} className="flex-1 space-y-5">
           {col.map((i) => (
             <div key={i} className="overflow-hidden rounded-2xl bg-card shadow-sm">
               <Skeleton

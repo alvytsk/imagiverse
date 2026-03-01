@@ -1,15 +1,22 @@
 import { and, desc, eq, lt, or, type SQL, sql } from 'drizzle-orm';
 import type {
+  ExifData,
   MeProfileResponse,
   PaginatedResponse,
   PhotoResponse,
   PublicUser,
 } from 'imagiverse-shared';
 import sanitizeHtml from 'sanitize-html';
+import sharp from 'sharp';
 import { transliterate } from 'transliteration';
 import { db } from '../../db/index';
 import { photos, users } from '../../db/schema/index';
-import { getPresignedDownloadUrl } from '../../plugins/s3';
+import {
+  S3Keys,
+  deleteObject,
+  getPresignedDownloadUrl,
+  uploadObject,
+} from '../../plugins/s3';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -52,6 +59,7 @@ export async function searchUsers(query: string, limit?: number): Promise<Public
       u.display_name AS "displayName",
       u.city,
       u.avatar_url AS "avatarUrl",
+      u.banner_url AS "bannerUrl",
       u.bio,
       u.created_at AS "createdAt",
       COALESCE(
@@ -71,16 +79,25 @@ export async function searchUsers(query: string, limit?: number): Promise<Public
     LIMIT ${pageLimit}
   `);
 
-  return (rows as unknown as Array<Record<string, unknown>>).map((row) => ({
-    id: row.id as string,
-    username: row.username as string,
-    displayName: row.displayName as string,
-    city: (row.city as string) ?? null,
-    avatarUrl: (row.avatarUrl as string) ?? null,
-    bio: (row.bio as string) ?? null,
-    photoCount: Number(row.photoCount),
-    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
-  }));
+  const rawRows = rows as unknown as Array<Record<string, unknown>>;
+
+  return Promise.all(
+    rawRows.map(async (row) => ({
+      id: row.id as string,
+      username: row.username as string,
+      displayName: row.displayName as string,
+      city: (row.city as string) ?? null,
+      avatarUrl: row.avatarUrl
+        ? await getPresignedDownloadUrl(row.avatarUrl as string, PRESIGNED_URL_EXPIRY)
+        : null,
+      bannerUrl: row.bannerUrl
+        ? await getPresignedDownloadUrl(row.bannerUrl as string, PRESIGNED_URL_EXPIRY)
+        : null,
+      bio: (row.bio as string) ?? null,
+      photoCount: Number(row.photoCount),
+      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+    }))
+  );
 }
 
 // ── Text sanitization ───────────────────────────────────────────────────────
@@ -124,6 +141,7 @@ export async function getMyProfile(userId: string): Promise<MeProfileResponse | 
       displayName: users.displayName,
       city: users.city,
       avatarUrl: users.avatarUrl,
+      bannerUrl: users.bannerUrl,
       bio: users.bio,
       role: users.role,
       createdAt: users.createdAt,
@@ -139,13 +157,19 @@ export async function getMyProfile(userId: string): Promise<MeProfileResponse | 
     .from(photos)
     .where(and(eq(photos.userId, userId), eq(photos.status, 'ready')));
 
+  const [avatarUrl, bannerUrl] = await Promise.all([
+    user.avatarUrl ? getPresignedDownloadUrl(user.avatarUrl, PRESIGNED_URL_EXPIRY) : null,
+    user.bannerUrl ? getPresignedDownloadUrl(user.bannerUrl, PRESIGNED_URL_EXPIRY) : null,
+  ]);
+
   return {
     id: user.id,
     email: user.email,
     username: user.username,
     displayName: user.displayName,
     city: user.city,
-    avatarUrl: user.avatarUrl,
+    avatarUrl,
+    bannerUrl,
     bio: user.bio,
     role: user.role,
     photoCount: countRow?.count ?? 0,
@@ -161,6 +185,7 @@ export async function getPublicProfile(userId: string): Promise<PublicUser | nul
       displayName: users.displayName,
       city: users.city,
       avatarUrl: users.avatarUrl,
+      bannerUrl: users.bannerUrl,
       bio: users.bio,
       createdAt: users.createdAt,
     })
@@ -177,12 +202,18 @@ export async function getPublicProfile(userId: string): Promise<PublicUser | nul
       and(eq(photos.userId, userId), eq(photos.status, 'ready'), eq(photos.visibility, 'public'))
     );
 
+  const [avatarUrl, bannerUrl] = await Promise.all([
+    user.avatarUrl ? getPresignedDownloadUrl(user.avatarUrl, PRESIGNED_URL_EXPIRY) : null,
+    user.bannerUrl ? getPresignedDownloadUrl(user.bannerUrl, PRESIGNED_URL_EXPIRY) : null,
+  ]);
+
   return {
     id: user.id,
     username: user.username,
     displayName: user.displayName,
     city: user.city,
-    avatarUrl: user.avatarUrl,
+    avatarUrl,
+    bannerUrl,
     bio: user.bio,
     photoCount: countRow?.count ?? 0,
     createdAt: user.createdAt.toISOString(),
@@ -208,6 +239,50 @@ export async function updateProfile(
   await db.update(users).set(updates).where(eq(users.id, userId));
 
   return getMyProfile(userId);
+}
+
+// ── Avatar & banner uploads ──────────────────────────────────────────────────
+
+const AVATAR_SIZE = 400; // px (square)
+const BANNER_WIDTH = 1200; // px
+const BANNER_HEIGHT = 300; // px
+
+export async function uploadAvatar(userId: string, fileBuffer: Buffer): Promise<void> {
+  const processed = await sharp(fileBuffer)
+    .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: 'cover' })
+    .webp({ quality: 90 })
+    .toBuffer();
+
+  const key = S3Keys.avatar(userId);
+  await uploadObject(key, processed, 'image/webp', processed.length);
+  await db.update(users).set({ avatarUrl: key, updatedAt: new Date() }).where(eq(users.id, userId));
+}
+
+export async function deleteAvatar(userId: string): Promise<void> {
+  const [user] = await db.select({ avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, userId)).limit(1);
+  if (user?.avatarUrl) {
+    await deleteObject(user.avatarUrl);
+  }
+  await db.update(users).set({ avatarUrl: null, updatedAt: new Date() }).where(eq(users.id, userId));
+}
+
+export async function uploadBanner(userId: string, fileBuffer: Buffer): Promise<void> {
+  const processed = await sharp(fileBuffer)
+    .resize(BANNER_WIDTH, BANNER_HEIGHT, { fit: 'cover' })
+    .webp({ quality: 90 })
+    .toBuffer();
+
+  const key = S3Keys.banner(userId);
+  await uploadObject(key, processed, 'image/webp', processed.length);
+  await db.update(users).set({ bannerUrl: key, updatedAt: new Date() }).where(eq(users.id, userId));
+}
+
+export async function deleteBanner(userId: string): Promise<void> {
+  const [user] = await db.select({ bannerUrl: users.bannerUrl }).from(users).where(eq(users.id, userId)).limit(1);
+  if (user?.bannerUrl) {
+    await deleteObject(user.bannerUrl);
+  }
+  await db.update(users).set({ bannerUrl: null, updatedAt: new Date() }).where(eq(users.id, userId));
 }
 
 // ── User photos ─────────────────────────────────────────────────────────────
@@ -254,6 +329,7 @@ export async function getUserPhotos(
       blurhash: photos.blurhash,
       width: photos.width,
       height: photos.height,
+      exifData: photos.exifData,
       likeCount: photos.likeCount,
       commentCount: photos.commentCount,
       createdAt: photos.createdAt,
@@ -290,6 +366,9 @@ export async function getUserPhotos(
         height: row.height,
         likeCount: row.likeCount,
         commentCount: row.commentCount,
+        likedByMe: false,
+        exifData: (row.exifData as ExifData) ?? null,
+        category: null,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
       };

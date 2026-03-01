@@ -132,6 +132,7 @@ export const S3Keys = {
   thumbMedium: (photoId: string) => `thumbs/${photoId}/medium.webp`,
   thumbLarge: (photoId: string) => `thumbs/${photoId}/large.webp`,
   avatar: (userId: string) => `avatars/${userId}/avatar.webp`,
+  banner: (userId: string) => `banners/${userId}/banner.webp`,
 };
 
 // ============================================================================

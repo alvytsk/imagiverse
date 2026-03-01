@@ -22,6 +22,39 @@ export interface PhotoThumbnails {
   large: string | null; // 1600px wide
 }
 
+/** Full EXIF metadata — returned on photo detail endpoint only. */
+export interface ExifData {
+  cameraMake: string | null;
+  cameraModel: string | null;
+  lensMake: string | null;
+  lensModel: string | null;
+  focalLength: number | null;
+  focalLengthIn35mm: number | null;
+  fNumber: number | null;
+  exposureTime: string | null;
+  iso: number | null;
+  dateTimeOriginal: string | null;
+  flash: boolean | null;
+  exposureProgram: string | null;
+  meteringMode: string | null;
+  whiteBalance: string | null;
+}
+
+/** Lightweight EXIF subset — included in feed and grid responses. */
+export interface ExifSummary {
+  cameraModel: string | null;
+  focalLength: number | null;
+  fNumber: number | null;
+  iso: number | null;
+  exposureTime: string | null;
+}
+
+export interface PhotoCategorySummary {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export interface PhotoResponse {
   id: string;
   userId: string;
@@ -34,6 +67,9 @@ export interface PhotoResponse {
   height: number | null;
   likeCount: number;
   commentCount: number;
+  likedByMe: boolean;
+  exifData: ExifData | null;
+  category: PhotoCategorySummary | null;
   createdAt: string;
   updatedAt: string;
 }

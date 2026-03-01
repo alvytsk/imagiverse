@@ -38,7 +38,7 @@ export function RegisterPage() {
     try {
       await registerUser(data);
       toast.success('Account created! Welcome to Imagiverse.');
-      navigate({ to: '/' });
+      navigate({ to: '/', search: { category: undefined } });
     } catch (err) {
       if (err instanceof ApiClientError) {
         if (err.details?.length) {

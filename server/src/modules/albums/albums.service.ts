@@ -1,5 +1,5 @@
 import { and, count, desc, eq } from 'drizzle-orm';
-import type { AlbumResponse, PhotoResponse } from 'imagiverse-shared';
+import type { AlbumResponse, ExifData, PhotoResponse } from 'imagiverse-shared';
 import sanitizeHtml from 'sanitize-html';
 import { db } from '../../db/index';
 import { albumPhotos, albums, photos } from '../../db/schema/index';
@@ -172,6 +172,7 @@ export async function getAlbumPhotos(albumId: string): Promise<PhotoResponse[]> 
       width: photos.width,
       height: photos.height,
       likeCount: photos.likeCount,
+      exifData: photos.exifData,
       commentCount: photos.commentCount,
       createdAt: photos.createdAt,
       updatedAt: photos.updatedAt,
@@ -203,6 +204,9 @@ export async function getAlbumPhotos(albumId: string): Promise<PhotoResponse[]> 
         height: row.height,
         likeCount: row.likeCount,
         commentCount: row.commentCount,
+        likedByMe: false,
+        exifData: (row.exifData as ExifData) ?? null,
+        category: null,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
       };

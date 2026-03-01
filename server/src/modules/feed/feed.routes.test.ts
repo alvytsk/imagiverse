@@ -112,7 +112,16 @@ describe('GET /api/feed', () => {
       url: '/api/feed?cursor=abc123&limit=10',
     });
 
-    expect(mockService.getFeed).toHaveBeenCalledWith('abc123', 10);
+    expect(mockService.getFeed).toHaveBeenCalledWith('abc123', 10, undefined, undefined);
+  });
+
+  it('passes category query param to service', async () => {
+    await app.inject({
+      method: 'GET',
+      url: '/api/feed?category=landscape',
+    });
+
+    expect(mockService.getFeed).toHaveBeenCalledWith(undefined, undefined, undefined, 'landscape');
   });
 
   it('returns empty feed when no photos', async () => {

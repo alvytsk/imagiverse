@@ -1,10 +1,12 @@
-import { Link, useNavigate, useParams } from '@tanstack/react-router';
-import { ArrowLeft, Heart, Pencil, Trash2, X } from 'lucide-react';
+import { useNavigate, useParams } from '@tanstack/react-router';
+import { Heart, Pencil, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 
 import { EditAlbumDialog } from '@/components/albums/edit-album-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { BlurhashImage } from '@/components/ui/blurhash-image';
+import { Breadcrumbs } from '@/components/ui/breadcrumbs';
+import { TransitionLink } from '@/components/ui/transition-link';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -42,7 +44,7 @@ export function AlbumDetailPage() {
     if (album?.userId) {
       navigate({ to: '/users/$userId', params: { userId: album.userId } });
     } else {
-      navigate({ to: '/' });
+      navigate({ to: '/', search: { category: undefined } });
     }
   };
 
@@ -60,17 +62,18 @@ export function AlbumDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
+      <Breadcrumbs
+        items={[
+          {
+            label: author?.displayName ?? 'User',
+            to: '/users/$userId',
+            params: { userId: album.userId },
+          },
+          { label: album.name },
+        ]}
+      />
       {/* Header */}
       <div className="mb-6 space-y-4">
-        <Link
-          to="/users/$userId"
-          params={{ userId: album.userId }}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to profile
-        </Link>
-
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold truncate">{album.name}</h1>
@@ -102,8 +105,8 @@ export function AlbumDetailPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link to="/users/$userId" params={{ userId: album.userId }}>
-            <Avatar className="h-8 w-8">
+          <TransitionLink to="/users/$userId" params={{ userId: album.userId }}>
+            <Avatar className="h-8 w-8" style={{ viewTransitionName: `avatar-${album.userId}` }}>
               {author?.avatarUrl ? (
                 <AvatarImage src={author.avatarUrl} alt={author.displayName} />
               ) : null}
@@ -111,15 +114,15 @@ export function AlbumDetailPage() {
                 {author?.displayName?.charAt(0).toUpperCase() ?? '?'}
               </AvatarFallback>
             </Avatar>
-          </Link>
+          </TransitionLink>
           <div className="text-sm">
-            <Link
+            <TransitionLink
               to="/users/$userId"
               params={{ userId: album.userId }}
               className="font-medium hover:underline"
             >
               {author?.displayName ?? 'User'}
-            </Link>
+            </TransitionLink>
             <span className="text-muted-foreground">
               {' · '}{photos.length} photos{' · '}{timeAgo(album.createdAt)}
             </span>
@@ -142,7 +145,7 @@ export function AlbumDetailPage() {
               key={photo.id}
               className="group relative aspect-square overflow-hidden rounded-xl bg-muted"
             >
-              <Link
+              <TransitionLink
                 to="/photos/$photoId"
                 params={{ photoId: photo.id }}
                 className="block h-full w-full"
@@ -151,7 +154,8 @@ export function AlbumDetailPage() {
                   blurhash={photo.blurhash}
                   src={photo.thumbnails.medium ?? photo.thumbnails.small ?? ''}
                   alt={photo.caption ?? 'Photo'}
-                  className="h-full w-full transition-transform duration-300 group-hover:scale-105"
+                  className="h-full w-full rounded-xl transition-transform duration-300 group-hover:scale-105"
+                  style={{ viewTransitionName: `photo-${photo.id}` }}
                 />
                 <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all duration-300 group-hover:bg-black/30">
                   <span className="flex items-center gap-1.5 text-white text-sm font-medium opacity-0 transition-opacity duration-300 group-hover:opacity-100">
@@ -159,7 +163,7 @@ export function AlbumDetailPage() {
                     {photo.likeCount}
                   </span>
                 </div>
-              </Link>
+              </TransitionLink>
               {isOwner && (
                 <button
                   className="absolute top-2 right-2 rounded-full bg-black/50 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/70"
@@ -221,8 +225,14 @@ export function AlbumDetailPage() {
 function AlbumDetailSkeleton() {
   return (
     <div className="mx-auto max-w-4xl">
+      <div className="mb-6 flex items-center gap-1">
+        <Skeleton className="h-3.5 w-3.5 rounded" />
+        <Skeleton className="h-3.5 w-3.5 rounded" />
+        <Skeleton className="h-4 w-20 rounded" />
+        <Skeleton className="h-3.5 w-3.5 rounded" />
+        <Skeleton className="h-4 w-28 rounded" />
+      </div>
       <div className="mb-6 space-y-4">
-        <Skeleton className="h-4 w-28" />
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-4 w-48" />
         <div className="flex items-center gap-3">

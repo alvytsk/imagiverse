@@ -90,6 +90,59 @@
 
   html {
     scroll-behavior: smooth;
+    overflow-y: scroll;
+  }
+
+  /* ── Custom scrollbar ──────────────────────────────────────────────────── */
+
+  /* Firefox — thin, theme-aware, quiet until needed */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.75 0.01 264 / 0.35) transparent;
+  }
+
+  .dark * {
+    scrollbar-color: oklch(0.45 0.01 264 / 0.3) transparent;
+  }
+
+  /* WebKit (Chrome, Safari, Edge) — slim floating rail */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: oklch(0.75 0.01 264 / 0.35);
+    border-radius: 9999px;
+    transition: background-color 0.2s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.55 0.02 55 / 0.55);
+  }
+
+  ::-webkit-scrollbar-thumb:active {
+    background-color: var(--color-primary);
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background-color: oklch(0.45 0.01 264 / 0.3);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.65 0.04 55 / 0.5);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:active {
+    background-color: var(--color-primary);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
   }
 
   body {
@@ -106,7 +159,59 @@
       "Noto Color Emoji";
   }
 
-  main > * {
-    animation: fade-in 0.3s ease-out;
+  /* Only use the CSS fade-in on browsers without View Transitions support.
+     When View Transitions are available the API handles page transitions and
+     this animation would conflict (new DOM starts at opacity 0 which gets
+     captured as the "new" snapshot → blink). */
+  @supports not (view-transition-name: none) {
+    main > * {
+      animation: fade-in 0.3s ease-out;
+    }
+  }
+}
+
+/* ── View Transitions API ────────────────────────────────────────────────── */
+
+/* Prevent the transparent "hole" artifact: when a named element (e.g. a photo)
+   is extracted from the root snapshot, the crossfade of old/new root layers
+   exposes the bare page background behind the morphing element.
+   `isolation: auto` + `mix-blend-mode: normal` composites the two root layers
+   against the page background naturally instead of creating an isolated
+   stacking context with transparent gaps. */
+::view-transition-image-pair(root) {
+  isolation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  mix-blend-mode: normal;
+  animation-duration: 180ms;
+}
+
+::view-transition-old(root) {
+  animation-name: vt-fade-out;
+  animation-timing-function: ease-out;
+}
+
+::view-transition-new(root) {
+  animation-name: vt-fade-in;
+  animation-timing-function: ease-in;
+}
+
+@keyframes vt-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes vt-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }

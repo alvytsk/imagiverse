@@ -100,6 +100,7 @@ export function setupIntegration(): IntegrationContext {
 
     // Import route modules dynamically to pick up fresh env
     const { authRoutes } = await import('../modules/auth/auth.routes');
+    const { categoriesRoutes } = await import('../modules/categories/categories.routes');
     const { photoRoutes } = await import('../modules/photos/photos.routes');
     const { likesRoutes } = await import('../modules/likes/likes.routes');
     const { commentsRoutes } = await import('../modules/comments/comments.routes');
@@ -111,6 +112,7 @@ export function setupIntegration(): IntegrationContext {
 
     await app.register(healthRoutes);
     await app.register(authRoutes, { prefix: '/api' });
+    await app.register(categoriesRoutes, { prefix: '/api' });
     await app.register(photoRoutes, { prefix: '/api' });
     await app.register(likesRoutes, { prefix: '/api' });
     await app.register(commentsRoutes, { prefix: '/api' });
@@ -139,6 +141,6 @@ export function setupIntegration(): IntegrationContext {
  */
 export async function truncateAllTables(db: IntegrationContext['db']): Promise<void> {
   await db.execute(sql`
-    TRUNCATE reports, notifications, feed_scores, comments, likes, photos, users CASCADE
+    TRUNCATE reports, notifications, feed_scores, comments, likes, photos, categories, users CASCADE
   `);
 }

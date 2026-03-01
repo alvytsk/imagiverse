@@ -8,12 +8,50 @@ export declare const UpdateCaptionSchema: z.ZodObject<{
     caption?: string | null | undefined;
 }>;
 export type UpdateCaptionInput = z.infer<typeof UpdateCaptionSchema>;
+export declare const UpdateVisibilitySchema: z.ZodObject<{
+    visibility: z.ZodEnum<["public", "private"]>;
+}, "strip", z.ZodTypeAny, {
+    visibility: "public" | "private";
+}, {
+    visibility: "public" | "private";
+}>;
+export type UpdateVisibilityInput = z.infer<typeof UpdateVisibilitySchema>;
 export declare const PHOTO_VISIBILITY: readonly ["public", "private"];
 export type PhotoVisibility = (typeof PHOTO_VISIBILITY)[number];
 export interface PhotoThumbnails {
     small: string | null;
     medium: string | null;
     large: string | null;
+}
+/** Full EXIF metadata — returned on photo detail endpoint only. */
+export interface ExifData {
+    cameraMake: string | null;
+    cameraModel: string | null;
+    lensMake: string | null;
+    lensModel: string | null;
+    focalLength: number | null;
+    focalLengthIn35mm: number | null;
+    fNumber: number | null;
+    exposureTime: string | null;
+    iso: number | null;
+    dateTimeOriginal: string | null;
+    flash: boolean | null;
+    exposureProgram: string | null;
+    meteringMode: string | null;
+    whiteBalance: string | null;
+}
+/** Lightweight EXIF subset — included in feed and grid responses. */
+export interface ExifSummary {
+    cameraModel: string | null;
+    focalLength: number | null;
+    fNumber: number | null;
+    iso: number | null;
+    exposureTime: string | null;
+}
+export interface PhotoCategorySummary {
+    id: string;
+    name: string;
+    slug: string;
 }
 export interface PhotoResponse {
     id: string;
@@ -27,6 +65,9 @@ export interface PhotoResponse {
     height: number | null;
     likeCount: number;
     commentCount: number;
+    likedByMe: boolean;
+    exifData: ExifData | null;
+    category: PhotoCategorySummary | null;
     createdAt: string;
     updatedAt: string;
 }

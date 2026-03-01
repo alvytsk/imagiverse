@@ -1,5 +1,6 @@
 import { setupIntegration, truncateAllTables } from '../../test-helpers/integration-setup';
 import {
+  createTestCategory,
   createTestFeedScore,
   createTestPhoto,
   createTestUser,
@@ -11,7 +12,8 @@ vi.mock('../../plugins/s3', () => ({
   getPresignedDownloadUrl: vi.fn().mockResolvedValue('https://fake-s3.example.com/presigned'),
   deleteObject: vi.fn().mockResolvedValue(undefined),
   S3Keys: {
-    original: (userId: string, photoId: string, ext: string) => `originals/${userId}/${photoId}.${ext}`,
+    original: (userId: string, photoId: string, ext: string) =>
+      `originals/${userId}/${photoId}.${ext}`,
     thumbSmall: (photoId: string) => `thumbs/${photoId}/small.webp`,
     thumbMedium: (photoId: string) => `thumbs/${photoId}/medium.webp`,
     thumbLarge: (photoId: string) => `thumbs/${photoId}/large.webp`,
@@ -134,5 +136,89 @@ describe('GET /api/feed', () => {
     });
 
     expect(res.statusCode).toBe(200);
+  });
+
+  it('should filter by category slug', async () => {
+    const user = await createTestUser(ctx.db);
+    const landscape = await createTestCategory(ctx.db, {
+      name: 'Landscape',
+      slug: 'landscape',
+      displayOrder: 1,
+    });
+    const portrait = await createTestCategory(ctx.db, {
+      name: 'Portrait',
+      slug: 'portrait',
+      displayOrder: 2,
+    });
+
+    const photo1 = await createTestPhoto(ctx.db, user.id, { categoryId: landscape.id });
+    const photo2 = await createTestPhoto(ctx.db, user.id, { categoryId: portrait.id });
+    const photo3 = await createTestPhoto(ctx.db, user.id, { categoryId: landscape.id });
+
+    const now = new Date();
+    await createTestFeedScore(ctx.db, photo1.id, 5, now);
+    await createTestFeedScore(ctx.db, photo2.id, 10, now);
+    await createTestFeedScore(ctx.db, photo3.id, 1, now);
+
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: '/api/feed?category=landscape',
+    });
+
+    const body = JSON.parse(res.body);
+    expect(body.data).toHaveLength(2);
+    const ids = body.data.map((item: { id: string }) => item.id);
+    expect(ids).toContain(photo1.id);
+    expect(ids).toContain(photo3.id);
+    expect(ids).not.toContain(photo2.id);
+  });
+
+  it('should return category data in feed items', async () => {
+    const user = await createTestUser(ctx.db);
+    const landscape = await createTestCategory(ctx.db, {
+      name: 'Landscape',
+      slug: 'landscape',
+      displayOrder: 1,
+    });
+
+    const photo = await createTestPhoto(ctx.db, user.id, { categoryId: landscape.id });
+    await createTestFeedScore(ctx.db, photo.id, 5, new Date());
+
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: '/api/feed',
+    });
+
+    const body = JSON.parse(res.body);
+    expect(body.data[0].category).toEqual({
+      id: landscape.id,
+      name: 'Landscape',
+      slug: 'landscape',
+    });
+  });
+
+  it('should return null category for uncategorized photos', async () => {
+    const user = await createTestUser(ctx.db);
+    const photo = await createTestPhoto(ctx.db, user.id);
+    await createTestFeedScore(ctx.db, photo.id, 5, new Date());
+
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: '/api/feed',
+    });
+
+    const body = JSON.parse(res.body);
+    expect(body.data[0].category).toBeNull();
+  });
+
+  it('should return empty feed for nonexistent category slug', async () => {
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: '/api/feed?category=nonexistent',
+    });
+
+    const body = JSON.parse(res.body);
+    expect(body.data).toHaveLength(0);
+    expect(body.pagination.hasMore).toBe(false);
   });
 });

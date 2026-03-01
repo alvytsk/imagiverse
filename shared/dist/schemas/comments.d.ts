@@ -16,6 +16,7 @@ export interface CommentResponse {
     userId: string;
     username: string;
     displayName: string;
+    avatarUrl: string | null;
     body: string;
     parentId: string | null;
     replyCount: number;

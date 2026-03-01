@@ -41,6 +41,7 @@ export function useLikePhoto(photoId: string) {
         queryClient.setQueryData<PhotoResponse>(['photos', photoId], {
           ...previous,
           likeCount: previous.likeCount + 1,
+          likedByMe: true,
         });
       }
       return { previous };
@@ -69,6 +70,7 @@ export function useLikePhoto(photoId: string) {
         queryClient.setQueryData<PhotoResponse>(['photos', photoId], {
           ...previous,
           likeCount: Math.max(0, previous.likeCount - 1),
+          likedByMe: false,
         });
       }
       return { previous };
@@ -225,6 +227,26 @@ export function useDeletePhoto(photoId: string) {
         toast.error(err.message);
       } else {
         toast.error('Failed to delete photo');
+      }
+    },
+  });
+}
+
+export function useUpdateCategory(photoId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (categoryId: string | null) =>
+      api.patch<PhotoResponse>(`/photos/${photoId}/category`, { categoryId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['photos', photoId] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+    },
+    onError: (err) => {
+      if (err instanceof ApiClientError) {
+        toast.error(err.message);
+      } else {
+        toast.error('Failed to update category');
       }
     },
   });

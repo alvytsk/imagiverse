@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type {
   PaginatedResponse,
   PhotoResponse,
@@ -6,6 +6,7 @@ import type {
 } from 'imagiverse-shared';
 
 import { api } from '@/lib/api-client';
+import { useAuthStore } from '@/stores/auth-store';
 
 export function useUser(userId: string) {
   return useQuery({
@@ -46,5 +47,63 @@ export function useSearchUsers(query: string) {
       );
     },
     enabled: query.length >= 2,
+  });
+}
+
+export function useUploadAvatar(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (blob: Blob) => {
+      const formData = new FormData();
+      formData.append('file', blob, 'avatar.webp');
+      return api.post<{ avatarUrl: string | null }>('/users/me/avatar', formData);
+    },
+    onSuccess: ({ avatarUrl }) => {
+      // Sync the new presigned URL into the Zustand auth store so the navbar
+      // avatar updates immediately without a page reload.
+      const current = useAuthStore.getState().user;
+      if (current) useAuthStore.getState().setUser({ ...current, avatarUrl });
+      queryClient.invalidateQueries({ queryKey: ['users', userId] });
+    },
+  });
+}
+
+export function useDeleteAvatar(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete<void>('/users/me/avatar'),
+    onSuccess: () => {
+      const current = useAuthStore.getState().user;
+      if (current) useAuthStore.getState().setUser({ ...current, avatarUrl: null });
+      queryClient.invalidateQueries({ queryKey: ['users', userId] });
+    },
+  });
+}
+
+export function useUploadBanner(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (blob: Blob) => {
+      const formData = new FormData();
+      formData.append('file', blob, 'banner.webp');
+      return api.post<{ bannerUrl: string | null }>('/users/me/banner', formData);
+    },
+    onSuccess: ({ bannerUrl }) => {
+      const current = useAuthStore.getState().user;
+      if (current) useAuthStore.getState().setUser({ ...current, bannerUrl });
+      queryClient.invalidateQueries({ queryKey: ['users', userId] });
+    },
+  });
+}
+
+export function useDeleteBanner(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete<void>('/users/me/banner'),
+    onSuccess: () => {
+      const current = useAuthStore.getState().user;
+      if (current) useAuthStore.getState().setUser({ ...current, bannerUrl: null });
+      queryClient.invalidateQueries({ queryKey: ['users', userId] });
+    },
   });
 }

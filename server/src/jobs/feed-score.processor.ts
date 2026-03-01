@@ -1,6 +1,7 @@
 import { Worker } from 'bullmq';
 import { sql } from 'drizzle-orm';
 import { db } from '../db/index';
+import { bullmqJobsDuration, bullmqJobsTotal } from '../lib/metrics';
 import { logger } from '../lib/logger';
 import { redis } from '../plugins/redis';
 import { bullConnection, FEED_SCORE_QUEUE_NAME } from './queue';
@@ -68,7 +69,15 @@ export function createFeedScoreWorker(): Worker {
     }
   );
 
+  worker.on('completed', (job) => {
+    const durationSec =
+      job.finishedOn && job.processedOn ? (job.finishedOn - job.processedOn) / 1000 : 0;
+    bullmqJobsTotal.inc({ queue: FEED_SCORE_QUEUE_NAME, status: 'completed' });
+    bullmqJobsDuration.observe({ queue: FEED_SCORE_QUEUE_NAME }, durationSec);
+  });
+
   worker.on('failed', (_job, err) => {
+    bullmqJobsTotal.inc({ queue: FEED_SCORE_QUEUE_NAME, status: 'failed' });
     logger.error({ err: err.message }, 'feed score recalc job failed');
   });
 

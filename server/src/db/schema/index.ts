@@ -26,6 +26,7 @@ export const users = pgTable(
     city: text('city'),
     passwordHash: text('password_hash').notNull(),
     avatarUrl: text('avatar_url'),
+    bannerUrl: text('banner_url'),
     bio: text('bio'),
     role: text('role').notNull().default('user'),
     bannedAt: timestamp('banned_at', { withTimezone: true }),
@@ -45,6 +46,18 @@ export const users = pgTable(
 );
 
 // ============================================================================
+// Categories
+// ============================================================================
+export const categories = pgTable('categories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull().unique(),
+  slug: text('slug').notNull().unique(),
+  displayOrder: integer('display_order').notNull().default(0),
+  iconName: text('icon_name'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ============================================================================
 // Photos
 // ============================================================================
 export const photos = pgTable(
@@ -54,6 +67,7 @@ export const photos = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'set null' }),
     caption: text('caption'),
     status: text('status').notNull().default('processing'),
     originalKey: text('original_key').notNull(),
@@ -65,6 +79,7 @@ export const photos = pgTable(
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
     mimeType: text('mime_type'),
     blurhash: text('blurhash'),
+    exifData: jsonb('exif_data'),
     visibility: text('visibility').notNull().default('public'),
     likeCount: integer('like_count').notNull().default(0),
     commentCount: integer('comment_count').notNull().default(0),
@@ -76,6 +91,7 @@ export const photos = pgTable(
     index('idx_photos_created').on(table.createdAt),
     index('idx_photos_status').on(table.status),
     index('idx_photos_visibility').on(table.visibility),
+    index('idx_photos_category').on(table.categoryId),
   ]
 );
 
@@ -234,8 +250,13 @@ export const usersRelations = relations(users, ({ many }) => ({
   reports: many(reports),
 }));
 
+export const categoriesRelations = relations(categories, ({ many }) => ({
+  photos: many(photos),
+}));
+
 export const photosRelations = relations(photos, ({ one, many }) => ({
   user: one(users, { fields: [photos.userId], references: [users.id] }),
+  category: one(categories, { fields: [photos.categoryId], references: [categories.id] }),
   likes: many(likes),
   comments: many(comments),
   feedScore: one(feedScores, { fields: [photos.id], references: [feedScores.photoId] }),
@@ -250,7 +271,11 @@ export const likesRelations = relations(likes, ({ one }) => ({
 export const commentsRelations = relations(comments, ({ one, many }) => ({
   user: one(users, { fields: [comments.userId], references: [users.id] }),
   photo: one(photos, { fields: [comments.photoId], references: [photos.id] }),
-  parent: one(comments, { fields: [comments.parentId], references: [comments.id], relationName: 'commentReplies' }),
+  parent: one(comments, {
+    fields: [comments.parentId],
+    references: [comments.id],
+    relationName: 'commentReplies',
+  }),
   replies: many(comments, { relationName: 'commentReplies' }),
 }));
 

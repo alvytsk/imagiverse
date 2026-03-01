@@ -19,6 +19,7 @@ export interface PublicUser {
     displayName: string;
     city: string | null;
     avatarUrl: string | null;
+    bannerUrl: string | null;
     bio: string | null;
     photoCount: number;
     createdAt: string;
@@ -30,6 +31,7 @@ export interface MeProfileResponse {
     displayName: string;
     city: string | null;
     avatarUrl: string | null;
+    bannerUrl: string | null;
     bio: string | null;
     role: string;
     photoCount: number;

@@ -6,5 +6,8 @@ const FeedPage = lazy(() =>
 );
 
 export const Route = createFileRoute('/')({
+  validateSearch: (search: Record<string, unknown>) => ({
+    category: (search.category as string) || undefined,
+  }),
   component: FeedPage,
 });
