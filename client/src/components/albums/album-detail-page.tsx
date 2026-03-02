@@ -21,6 +21,7 @@ import { useAlbumDetail, useDeleteAlbum, useRemovePhotoFromAlbum } from '@/hooks
 import { useUser } from '@/hooks/use-users';
 import { timeAgo } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
+import { usePhotoNavigationStore } from '@/stores/photo-navigation-store';
 
 export function AlbumDetailPage() {
   const { albumId } = useParams({ from: '/albums/$albumId' });
@@ -37,6 +38,7 @@ export function AlbumDetailPage() {
   const navigate = useNavigate();
   const deleteAlbum = useDeleteAlbum();
   const removePhoto = useRemovePhotoFromAlbum(albumId);
+  const setNavigation = usePhotoNavigationStore((s) => s.setNavigation);
 
   const handleDelete = async () => {
     await deleteAlbum.mutateAsync(albumId);
@@ -149,6 +151,24 @@ export function AlbumDetailPage() {
                 to="/photos/$photoId"
                 params={{ photoId: photo.id }}
                 className="block h-full w-full"
+                onClick={() =>
+                  setNavigation(
+                    photos.map((p) => p.id),
+                    `album:${albumId}`,
+                    [
+                      {
+                        label: author?.displayName ?? 'User',
+                        to: '/users/$userId',
+                        params: { userId: album.userId },
+                      },
+                      {
+                        label: album.name,
+                        to: '/albums/$albumId',
+                        params: { albumId },
+                      },
+                    ],
+                  )
+                }
               >
                 <BlurhashImage
                   blurhash={photo.blurhash}

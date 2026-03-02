@@ -3,7 +3,7 @@ import type { CommentResponse, PaginatedResponse } from 'imagiverse-shared';
 import sanitizeHtml from 'sanitize-html';
 import { db } from '../../db/index';
 import { comments, photos, users } from '../../db/schema/index';
-import { getPresignedDownloadUrl } from '../../plugins/s3';
+import { getCachedPresignedUrl } from '../../lib/presigned-url-cache';
 import { createNotification } from '../notifications/notifications.service';
 
 const AVATAR_URL_EXPIRY = 3600;
@@ -130,7 +130,7 @@ export async function createComment(
     .limit(1);
 
   const avatarUrl = author.avatarUrl
-    ? await getPresignedDownloadUrl(author.avatarUrl, AVATAR_URL_EXPIRY)
+    ? await getCachedPresignedUrl(author.avatarUrl, AVATAR_URL_EXPIRY)
     : null;
 
   const response: CommentResponse = {
@@ -233,7 +233,7 @@ export async function listComments(
       username: row.username,
       displayName: row.displayName,
       avatarUrl: row.avatarKey
-        ? await getPresignedDownloadUrl(row.avatarKey, AVATAR_URL_EXPIRY)
+        ? await getCachedPresignedUrl(row.avatarKey, AVATAR_URL_EXPIRY)
         : null,
       body: row.body,
       parentId: row.parentId,
@@ -306,7 +306,7 @@ export async function listReplies(
       username: row.username,
       displayName: row.displayName,
       avatarUrl: row.avatarKey
-        ? await getPresignedDownloadUrl(row.avatarKey, AVATAR_URL_EXPIRY)
+        ? await getCachedPresignedUrl(row.avatarKey, AVATAR_URL_EXPIRY)
         : null,
       body: row.body,
       parentId: row.parentId,

@@ -3,7 +3,7 @@ import type { AlbumResponse, ExifData, PhotoResponse } from 'imagiverse-shared';
 import sanitizeHtml from 'sanitize-html';
 import { db } from '../../db/index';
 import { albumPhotos, albums, photos } from '../../db/schema/index';
-import { getPresignedDownloadUrl } from '../../plugins/s3';
+import { getCachedPresignedUrl } from '../../lib/presigned-url-cache';
 
 const PRESIGNED_URL_EXPIRY = 3600;
 
@@ -69,7 +69,7 @@ async function buildAlbumResponse(album: typeof albums.$inferSelect): Promise<Al
     .limit(1);
 
   if (latestEntry?.thumbSmallKey) {
-    coverUrl = await getPresignedDownloadUrl(latestEntry.thumbSmallKey, PRESIGNED_URL_EXPIRY);
+    coverUrl = await getCachedPresignedUrl(latestEntry.thumbSmallKey, PRESIGNED_URL_EXPIRY);
   }
 
   return {
@@ -185,11 +185,11 @@ export async function getAlbumPhotos(albumId: string): Promise<PhotoResponse[]> 
   return Promise.all(
     rows.map(async (row) => {
       const [small, medium, large] = await Promise.all([
-        row.thumbSmallKey ? getPresignedDownloadUrl(row.thumbSmallKey, PRESIGNED_URL_EXPIRY) : null,
+        row.thumbSmallKey ? getCachedPresignedUrl(row.thumbSmallKey, PRESIGNED_URL_EXPIRY) : null,
         row.thumbMediumKey
-          ? getPresignedDownloadUrl(row.thumbMediumKey, PRESIGNED_URL_EXPIRY)
+          ? getCachedPresignedUrl(row.thumbMediumKey, PRESIGNED_URL_EXPIRY)
           : null,
-        row.thumbLargeKey ? getPresignedDownloadUrl(row.thumbLargeKey, PRESIGNED_URL_EXPIRY) : null,
+        row.thumbLargeKey ? getCachedPresignedUrl(row.thumbLargeKey, PRESIGNED_URL_EXPIRY) : null,
       ]);
 
       return {

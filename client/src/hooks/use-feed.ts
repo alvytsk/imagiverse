@@ -20,5 +20,6 @@ export function useFeed(limit = 20, category?: string) {
         ? lastPage.pagination.nextCursor
         : undefined,
     initialPageParam: '' as string,
+    staleTime: 5 * 60_000, // presigned URLs are cached 55 min server-side; 5 min is safe
   });
 }

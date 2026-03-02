@@ -6,7 +6,8 @@ import { db } from '../../db/index';
 import { categories, photos } from '../../db/schema/index';
 import { type ThumbnailJobData, thumbnailQueue } from '../../jobs/queue';
 import { RedisKeys, redis } from '../../plugins/redis';
-import { getPresignedDownloadUrl, S3Keys, uploadObject } from '../../plugins/s3';
+import { S3Keys, uploadObject } from '../../plugins/s3';
+import { getCachedPresignedUrl } from '../../lib/presigned-url-cache';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -154,11 +155,11 @@ export async function buildPhotoResponse(photo: {
   categorySlug?: string | null;
 }, options?: { likedByMe?: boolean }): Promise<PhotoResponse> {
   const [small, medium, large] = await Promise.all([
-    photo.thumbSmallKey ? getPresignedDownloadUrl(photo.thumbSmallKey, PRESIGNED_URL_EXPIRY) : null,
+    photo.thumbSmallKey ? getCachedPresignedUrl(photo.thumbSmallKey, PRESIGNED_URL_EXPIRY) : null,
     photo.thumbMediumKey
-      ? getPresignedDownloadUrl(photo.thumbMediumKey, PRESIGNED_URL_EXPIRY)
+      ? getCachedPresignedUrl(photo.thumbMediumKey, PRESIGNED_URL_EXPIRY)
       : null,
-    photo.thumbLargeKey ? getPresignedDownloadUrl(photo.thumbLargeKey, PRESIGNED_URL_EXPIRY) : null,
+    photo.thumbLargeKey ? getCachedPresignedUrl(photo.thumbLargeKey, PRESIGNED_URL_EXPIRY) : null,
   ]);
 
   const category: PhotoCategorySummary | null =

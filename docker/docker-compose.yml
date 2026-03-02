@@ -331,6 +331,14 @@ services:
   # UI available at http://localhost:3003  (admin / admin)
   # Auto-provisioned datasource: Prometheus
   # Auto-provisioned dashboard:  Imagiverse Overview
+  #
+  # Dashboard persistence:
+  #   - grafana_data volume stores Grafana's SQLite DB (survives "docker compose down")
+  #   - Provisioned JSON files (docker/grafana/dashboards/) are the source of truth
+  #   - DO NOT run "docker compose down -v" — that destroys all volumes including
+  #     grafana_data, losing any dashboards created via the UI
+  #   - UI edits to provisioned dashboards are stored in the DB and survive restarts,
+  #     but are overwritten if the corresponding JSON file changes on disk
   # ========================================================================
   grafana:
     image: grafana/grafana:11.4.0
@@ -354,8 +362,16 @@ services:
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
 
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health | grep -q '\"database\":\"ok\"' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_started
 
     networks:
       - imagiverse-network

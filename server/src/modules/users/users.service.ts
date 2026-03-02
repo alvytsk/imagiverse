@@ -14,9 +14,9 @@ import { photos, users } from '../../db/schema/index';
 import {
   S3Keys,
   deleteObject,
-  getPresignedDownloadUrl,
   uploadObject,
 } from '../../plugins/s3';
+import { getCachedPresignedUrl } from '../../lib/presigned-url-cache';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -88,10 +88,10 @@ export async function searchUsers(query: string, limit?: number): Promise<Public
       displayName: row.displayName as string,
       city: (row.city as string) ?? null,
       avatarUrl: row.avatarUrl
-        ? await getPresignedDownloadUrl(row.avatarUrl as string, PRESIGNED_URL_EXPIRY)
+        ? await getCachedPresignedUrl(row.avatarUrl as string, PRESIGNED_URL_EXPIRY)
         : null,
       bannerUrl: row.bannerUrl
-        ? await getPresignedDownloadUrl(row.bannerUrl as string, PRESIGNED_URL_EXPIRY)
+        ? await getCachedPresignedUrl(row.bannerUrl as string, PRESIGNED_URL_EXPIRY)
         : null,
       bio: (row.bio as string) ?? null,
       photoCount: Number(row.photoCount),
@@ -158,8 +158,8 @@ export async function getMyProfile(userId: string): Promise<MeProfileResponse | 
     .where(and(eq(photos.userId, userId), eq(photos.status, 'ready')));
 
   const [avatarUrl, bannerUrl] = await Promise.all([
-    user.avatarUrl ? getPresignedDownloadUrl(user.avatarUrl, PRESIGNED_URL_EXPIRY) : null,
-    user.bannerUrl ? getPresignedDownloadUrl(user.bannerUrl, PRESIGNED_URL_EXPIRY) : null,
+    user.avatarUrl ? getCachedPresignedUrl(user.avatarUrl, PRESIGNED_URL_EXPIRY) : null,
+    user.bannerUrl ? getCachedPresignedUrl(user.bannerUrl, PRESIGNED_URL_EXPIRY) : null,
   ]);
 
   return {
@@ -203,8 +203,8 @@ export async function getPublicProfile(userId: string): Promise<PublicUser | nul
     );
 
   const [avatarUrl, bannerUrl] = await Promise.all([
-    user.avatarUrl ? getPresignedDownloadUrl(user.avatarUrl, PRESIGNED_URL_EXPIRY) : null,
-    user.bannerUrl ? getPresignedDownloadUrl(user.bannerUrl, PRESIGNED_URL_EXPIRY) : null,
+    user.avatarUrl ? getCachedPresignedUrl(user.avatarUrl, PRESIGNED_URL_EXPIRY) : null,
+    user.bannerUrl ? getCachedPresignedUrl(user.bannerUrl, PRESIGNED_URL_EXPIRY) : null,
   ]);
 
   return {
@@ -347,11 +347,11 @@ export async function getUserPhotos(
   const photoResponses: PhotoResponse[] = await Promise.all(
     data.map(async (row) => {
       const [small, medium, large] = await Promise.all([
-        row.thumbSmallKey ? getPresignedDownloadUrl(row.thumbSmallKey, PRESIGNED_URL_EXPIRY) : null,
+        row.thumbSmallKey ? getCachedPresignedUrl(row.thumbSmallKey, PRESIGNED_URL_EXPIRY) : null,
         row.thumbMediumKey
-          ? getPresignedDownloadUrl(row.thumbMediumKey, PRESIGNED_URL_EXPIRY)
+          ? getCachedPresignedUrl(row.thumbMediumKey, PRESIGNED_URL_EXPIRY)
           : null,
-        row.thumbLargeKey ? getPresignedDownloadUrl(row.thumbLargeKey, PRESIGNED_URL_EXPIRY) : null,
+        row.thumbLargeKey ? getCachedPresignedUrl(row.thumbLargeKey, PRESIGNED_URL_EXPIRY) : null,
       ]);
 
       return {

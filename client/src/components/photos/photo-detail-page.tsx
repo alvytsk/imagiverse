@@ -73,6 +73,7 @@ export function PhotoDetailPage() {
   // ── Session-stable prev/next navigation ─────────────────────────────────
   const photoIds = usePhotoNavigationStore((s) => s.photoIds);
   const sourceKey = usePhotoNavigationStore((s) => s.sourceKey);
+  const contextBreadcrumbs = usePhotoNavigationStore((s) => s.contextBreadcrumbs);
   const feedCategory =
     sourceKey?.startsWith('feed:') && sourceKey.slice(5) !== 'all'
       ? sourceKey.slice(5)
@@ -173,7 +174,7 @@ export function PhotoDetailPage() {
     <div className="mx-auto max-w-6xl">
       <Breadcrumbs
         homeSearch={feedCategory ? { category: feedCategory } : undefined}
-        items={[{ label: photo.caption ?? 'Photo' }]}
+        items={[...contextBreadcrumbs, { label: photo.caption ?? 'Photo' }]}
       />
       {/* ── Photo hero: cinema-stage presentation ── */}
       <div className="relative group/nav">

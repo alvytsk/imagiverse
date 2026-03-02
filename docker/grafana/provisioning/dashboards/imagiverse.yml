@@ -5,8 +5,15 @@ providers:
     orgId: 1
     folder: Imagiverse
     type: file
-    disableDeletion: false
+    # Prevent accidental dashboard deletion if a JSON file is removed from disk.
+    # To permanently delete a dashboard, remove it via the Grafana UI instead.
+    disableDeletion: true
+    # Re-checks the dashboards directory every 30 s. If a JSON file changes on
+    # disk (e.g. after git pull), Grafana will re-provision it and overwrite any
+    # UI edits. Export your changes with Dashboard → Share → Export before pulling.
     updateIntervalSeconds: 30
+    # Allow saving UI edits. Changes are stored in the grafana_data volume and
+    # survive container restarts — as long as the JSON file is not updated on disk.
     allowUiUpdates: true
     options:
       path: /etc/grafana/dashboards

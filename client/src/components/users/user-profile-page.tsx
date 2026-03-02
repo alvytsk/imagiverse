@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useUser, useUserPhotos, useUploadAvatar, useUploadBanner } from '@/hooks/use-users';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
+import { usePhotoNavigationStore } from '@/stores/photo-navigation-store';
 
 type Tab = 'photos' | 'albums';
 
@@ -35,6 +36,7 @@ export function UserProfilePage() {
       replace: true,
     });
   const [createAlbumOpen, setCreateAlbumOpen] = useState(false);
+  const setNavigation = usePhotoNavigationStore((s) => s.setNavigation);
 
   // Crop dialog state
   const [cropTarget, setCropTarget] = useState<CropTarget>(null);
@@ -268,6 +270,13 @@ export function UserProfilePage() {
                     to="/photos/$photoId"
                     params={{ photoId: photo.id }}
                     className="group relative aspect-square overflow-hidden rounded-xl bg-muted"
+                    onClick={() =>
+                      setNavigation(
+                        photos.map((p) => p.id),
+                        `profile:${userId}`,
+                        [{ label: user.displayName, to: '/users/$userId', params: { userId } }],
+                      )
+                    }
                   >
                     <BlurhashImage
                       blurhash={photo.blurhash}

@@ -6,7 +6,7 @@ import { feedCacheHitsTotal, feedCacheMissesTotal } from '../../lib/metrics';
 import { getCategoryBySlug } from '../categories/categories.service';
 import { getUserLikedPhotoIds } from '../likes/likes.service';
 import { redis } from '../../plugins/redis';
-import { getPresignedDownloadUrl } from '../../plugins/s3';
+import { getCachedPresignedUrl } from '../../lib/presigned-url-cache';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -150,12 +150,12 @@ export async function getFeed(
   const feedItems: FeedItemResponse[] = await Promise.all(
     data.map(async (row) => {
       const [small, medium, large, avatarUrl] = await Promise.all([
-        row.thumbSmallKey ? getPresignedDownloadUrl(row.thumbSmallKey, PRESIGNED_URL_EXPIRY) : null,
+        row.thumbSmallKey ? getCachedPresignedUrl(row.thumbSmallKey, PRESIGNED_URL_EXPIRY) : null,
         row.thumbMediumKey
-          ? getPresignedDownloadUrl(row.thumbMediumKey, PRESIGNED_URL_EXPIRY)
+          ? getCachedPresignedUrl(row.thumbMediumKey, PRESIGNED_URL_EXPIRY)
           : null,
-        row.thumbLargeKey ? getPresignedDownloadUrl(row.thumbLargeKey, PRESIGNED_URL_EXPIRY) : null,
-        row.authorAvatarUrl ? getPresignedDownloadUrl(row.authorAvatarUrl, PRESIGNED_URL_EXPIRY) : null,
+        row.thumbLargeKey ? getCachedPresignedUrl(row.thumbLargeKey, PRESIGNED_URL_EXPIRY) : null,
+        row.authorAvatarUrl ? getCachedPresignedUrl(row.authorAvatarUrl, PRESIGNED_URL_EXPIRY) : null,
       ]);
 
       const exif = row.exifData as ExifData | null;
